@@ -5,28 +5,18 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   HomeIcon,
-  GlobeAmericasIcon,
-  ChartBarIcon,
   CpuChipIcon,
-  BeakerIcon,
   PuzzlePieceIcon,
-  InformationCircleIcon,
-  Cog6ToothIcon,
   QuestionMarkCircleIcon,
+  Cog6ToothIcon,
+  BookOpenIcon,
 } from "@heroicons/react/24/outline";
 
 const navigation = [
   { name: "Inicio", href: "/", icon: HomeIcon },
-  { name: "Estado del Amazonas", href: "/estado", icon: GlobeAmericasIcon },
-  {
-    name: "Análisis de Deforestación",
-    href: "/deforestacion",
-    icon: ChartBarIcon,
-  },
   { name: "Predicciones IA", href: "/predicciones", icon: CpuChipIcon },
-  { name: "Simulador Ambiental", href: "/simulador", icon: BeakerIcon },
+  { name: "¿Cómo se hizo?", href: "/como-se-hizo", icon: BookOpenIcon },
   { name: "Juego Educativo", href: "/juego", icon: PuzzlePieceIcon },
-  { name: "Acerca del Proyecto", href: "/acerca", icon: InformationCircleIcon },
 ];
 
 export function Sidebar() {
