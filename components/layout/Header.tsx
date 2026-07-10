@@ -5,6 +5,10 @@ import {
   Cog6ToothIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
+import { usePathname } from "next/navigation";
+
+import { GameSessionExpiryButton } from "@/components/juego/GameSessionExpiryButton";
+import { useGuestSessionToken } from "@/lib/juego/useGuestSessionToken";
 
 interface HeaderProps {
   title: string;
@@ -12,6 +16,10 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
+  const pathname = usePathname();
+  const showGameSessionButton = pathname.startsWith("/juego");
+  useGuestSessionToken(showGameSessionButton);
+
   return (
     <header
       className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b"
@@ -38,6 +46,8 @@ export function Header({ title, subtitle }: HeaderProps) {
 
       {/* Right: controls */}
       <div className="flex items-center gap-3">
+        {showGameSessionButton && <GameSessionExpiryButton />}
+
         {/* Date range */}
         <div
           className="flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm"
