@@ -87,6 +87,11 @@ function setStoredAccessToken(token: string): void {
   }
 
   window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+
+  // Notifica a useGame (y cualquier otro listener) que hay un token listo.
+  // Usamos un CustomEvent porque el evento nativo `storage` solo se
+  // propaga a otras pestañas, no a la pestaña que escribió el valor.
+  window.dispatchEvent(new CustomEvent("amazonia:token", { detail: token }));
 }
 
 async function parseResponsePayload(response: Response): Promise<unknown> {
