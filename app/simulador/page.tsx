@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from 'next/navigation';
 
-import { SimulatorContent } from "@/components/simulador/SimulatorContent";
-
-export default function SimuladorPage() {
-  return <SimulatorContent />;
+export default function Page() {
+  redirect('/');
 }
