@@ -79,16 +79,16 @@ export default function PrediccionesPage() {
     return { alto, medio, bajo, total };
   }, [prediccionesMes]);
 
-  // Feature importance - merge mes_sin + mes_cos into Ciclo estacional
+  // Feature importance - usar importancia_variables_media, merge mes_sin + mes_cos
   const importanciaData = useMemo(() => {
     if (!data) return [];
-    const raw = data.metadata.importancia_variables;
+    const raw = data.metadata.importancia_variables_media ?? (data.metadata as any).importancia_variables ?? {};
     const merged: Record<string, number> = {};
     for (const [k, v] of Object.entries(raw)) {
       if (k === 'mes_sin' || k === 'mes_cos') {
-        merged['Ciclo estacional'] = (merged['Ciclo estacional'] ?? 0) + v;
+        merged['Ciclo estacional'] = (merged['Ciclo estacional'] ?? 0) + (v as number);
       } else {
-        merged[k] = v;
+        merged[k] = v as number;
       }
     }
     return Object.entries(merged)
@@ -102,7 +102,9 @@ export default function PrediccionesPage() {
     return [...new Set(data.predicciones_proximos_6_meses.map(p => p.departamento))].sort();
   }, [data]);
 
-  const accuracy = data?.metadata.metricas_clasificacion_riesgo.accuracy ?? 0;
+  const accuracy = data?.metadata.metricas_globales?.accuracy_riesgo
+    ?? (data?.metadata as any)?.metricas_clasificacion_riesgo?.accuracy
+    ?? 0;
 
   const rangoLabel = meses.length > 0
     ? `${meses[0].label} – ${meses[meses.length - 1].label}`
@@ -205,7 +207,8 @@ export default function PrediccionesPage() {
                 <tr>
                   <th className="text-left pb-2 text-xs" style={{ color: '#64748B' }}>Departamento</th>
                   <th className="text-right pb-2 text-xs" style={{ color: '#64748B' }}>Riesgo</th>
-                  <th className="text-right pb-2 text-xs" style={{ color: '#64748B' }}>Focos</th>
+                  <th className="text-right pb-2 text-xs" style={{ color: '#64748B' }}>Focos estimados</th>
+                  <th className="text-right pb-2 text-xs" style={{ color: '#64748B' }}>Promedio histórico</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,7 +229,14 @@ export default function PrediccionesPage() {
                           {p.riesgo_predicho.toUpperCase()}
                         </td>
                         <td className="py-1.5 px-2 text-right rounded-r text-xs" style={{ color: textColor }}>
-                          {Math.round(p.total_predicho)}
+                          {p.total_predicho % 1 === 0 ? p.total_predicho.toFixed(0) : p.total_predicho.toFixed(1)}
+                        </td>
+                        <td className="py-1.5 px-2 text-right rounded-r text-xs" style={{ color: '#64748B' }}>
+                          {(() => {
+                            const avg = data?.metadata.metricas_por_departamento?.[p.departamento]?.promedio_historico_mensual;
+                            if (avg == null) return '—';
+                            return avg % 1 === 0 ? avg.toFixed(0) : avg.toFixed(1);
+                          })()}
                         </td>
                       </tr>
                     );
@@ -310,6 +320,91 @@ export default function PrediccionesPage() {
             )}
           </div>
         </div>
+
+        {/* Métricas por departamento */}
+        {data?.metadata.metricas_por_departamento && (
+          <div className="rounded-xl border bg-white p-4" style={{ borderColor: '#D8D4C8' }}>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: '#1E293B' }}>
+              Rendimiento del modelo por departamento
+            </h3>
+
+            {/* Explicaciones de las métricas */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="rounded-lg p-3" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#1E293B' }}>📏 MAE — Error promedio</p>
+                <p className="text-xs leading-relaxed" style={{ color: '#64748B' }}>
+                  En promedio, cuántos focos se equivoca el modelo por mes. Un MAE de ±50 significa que la predicción típica está a 50 focos del valor real.
+                </p>
+              </div>
+              <div className="rounded-lg p-3" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#1E293B' }}>📈 R² — Qué tan bien sigue el patrón</p>
+                <p className="text-xs leading-relaxed" style={{ color: '#64748B' }}>
+                  Qué fracción de los altibajos históricos captura el modelo. R² = 1.0 sería perfecto; R² = 0 equivale a predecir siempre el promedio; negativo significa peor que la media.
+                </p>
+              </div>
+              <div className="rounded-lg p-3" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#1E293B' }}>🎯 Accuracy de riesgo — Aciertos de alerta</p>
+                <p className="text-xs leading-relaxed" style={{ color: '#64748B' }}>
+                  De cada 10 meses evaluados, en cuántos el modelo clasificó correctamente el nivel (bajo / medio / alto). Más directo que el MAE para decisiones de alerta.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
+                    <th className="text-left pb-2 pr-3 font-semibold" style={{ color: '#64748B' }}>Departamento</th>
+                    <th className="text-right pb-2 px-3 font-semibold" style={{ color: '#64748B' }}>MAE (focos/mes)</th>
+                    <th className="text-right pb-2 px-3 font-semibold" style={{ color: '#64748B' }}>Promedio histórico/mes</th>
+                    <th className="text-right pb-2 px-3 font-semibold" style={{ color: '#64748B' }}>R²</th>
+                    <th className="text-right pb-2 px-3 font-semibold" style={{ color: '#64748B' }}>Aciertos riesgo</th>
+                    <th className="text-right pb-2 pl-3 font-semibold" style={{ color: '#64748B' }}>Meses de examen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(data.metadata.metricas_por_departamento)
+                    .sort((a, b) => (a[1].mae ?? 9999) - (b[1].mae ?? 9999))
+                    .map(([dept, m]) => {
+                      const mae = m.mae;
+                      const maeColor = mae == null ? '#94A3B8'
+                        : mae < 50 ? '#065f46' : mae < 200 ? '#92400e' : '#9b1c1c';
+                      const maeBg = mae == null ? 'transparent'
+                        : mae < 50 ? '#d1fae5' : mae < 200 ? '#fef3c7' : '#fde8e8';
+                      return (
+                        <tr key={dept} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td className="py-1.5 pr-3 font-medium" style={{ color: '#1E293B' }}>
+                            {dept.charAt(0) + dept.slice(1).toLowerCase()}
+                          </td>
+                          <td className="py-1.5 px-3 text-right">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                              style={{ backgroundColor: maeBg, color: maeColor }}>
+                              {mae != null ? `±${mae.toFixed(1)}` : m.nota ?? '—'}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono" style={{ color: '#64748B' }}>
+                            {m.promedio_historico_mensual != null ? m.promedio_historico_mensual.toFixed(1) : '—'}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono" style={{ color: '#1E293B' }}>
+                            {m.r2 != null ? m.r2.toFixed(3) : '—'}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono" style={{ color: '#1E293B' }}>
+                            {m.accuracy_riesgo != null ? `${(m.accuracy_riesgo * 10).toFixed(0)} de 10` : '—'}
+                          </td>
+                          <td className="py-1.5 pl-3 text-right" style={{ color: '#64748B' }}>
+                            {m.meses_evaluados != null ? `${m.meses_evaluados} meses` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs mt-3" style={{ color: '#94A3B8' }}>
+              🟢 MAE &lt; 50 · 🟡 MAE 50–200 · 🔴 MAE &gt; 200
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

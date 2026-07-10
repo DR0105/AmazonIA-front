@@ -45,8 +45,8 @@ export default function ComoSeHizoPage() {
   const { data, loading } = usePredicciones();
 
   const metricas = data?.metadata;
-  const reg = metricas?.metricas_regresion;
-  const cls = metricas?.metricas_clasificacion_riesgo;
+  const reg = metricas?.metricas_globales ?? (metricas as any)?.metricas_regresion;
+  const cls = metricas?.metricas_globales ?? (metricas as any)?.metricas_clasificacion_riesgo;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -101,7 +101,7 @@ export default function ComoSeHizoPage() {
                 <MetricaCard
                   icono="🎯"
                   label="Acierta el nivel de riesgo"
-                  value={cls ? `${Math.round(cls.accuracy * 10)} de cada 10 meses` : '—'}
+                  value={reg ? `${Math.round((reg.accuracy_riesgo ?? 0) * 10)} de cada 10 meses` : '—'}
                   nota="Accuracy del clasificador de riesgo"
                 />
                 <MetricaCard

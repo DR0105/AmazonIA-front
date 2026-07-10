@@ -77,7 +77,9 @@ export default function ColombiaRiskMap({ predicciones, mesSeleccionado, anioSel
     const displayName: string = feature?.properties?.DPTO_CNMBR ?? 'Desconocido';
     const pred = riesgoMap.get(dptName);
     const riesgo: RiesgoLevel = pred?.riesgo_predicho ?? 'sin datos';
-    const focos = pred ? Math.round(pred.total_predicho) : null;
+    const focos = pred
+      ? (pred.total_predicho % 1 === 0 ? pred.total_predicho.toFixed(0) : pred.total_predicho.toFixed(1))
+      : null;
 
     layer.bindTooltip(
       `<div style="font-family:Inter,sans-serif;min-width:140px;padding:2px 0">

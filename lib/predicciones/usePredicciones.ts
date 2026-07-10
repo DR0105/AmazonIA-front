@@ -24,7 +24,12 @@ export interface MetricasRegresion {
   mae: number;
   rmse: number;
   r2: number;
-  meses_evaluados_por_departamento: number;
+  accuracy_riesgo: number;
+  precision_macro: number;
+  recall_macro: number;
+  f1_macro: number;
+  meses_evaluados_total?: number;
+  meses_evaluados_por_departamento?: number;
 }
 
 export interface MetricasClasificacion {
@@ -34,13 +39,31 @@ export interface MetricasClasificacion {
   f1_macro: number;
 }
 
+export interface MetricasDepto {
+  mae?: number;
+  rmse?: number;
+  r2?: number;
+  accuracy_riesgo?: number;
+  precision_macro?: number;
+  recall_macro?: number;
+  f1_macro?: number;
+  meses_evaluados?: number;
+  promedio_historico_mensual?: number;
+  nota?: string;
+}
+
 export interface PrediccionesData {
   metadata: {
     modelo: string;
     umbrales_riesgo: Record<string, { bajo: string; medio: string; alto: string }>;
-    metricas_regresion: MetricasRegresion;
-    metricas_clasificacion_riesgo: MetricasClasificacion;
-    importancia_variables: Record<string, number>;
+    metricas_globales: MetricasRegresion;
+    /** @deprecated use metricas_globales */
+    metricas_regresion?: MetricasRegresion;
+    /** @deprecated use metricas_globales */
+    metricas_clasificacion_riesgo?: MetricasClasificacion;
+    metricas_por_departamento: Record<string, MetricasDepto>;
+    importancia_variables_media: Record<string, number>;
+    importancia_variables_por_departamento: Record<string, Record<string, number>>;
     parametros: { horizonte_meses: number; meses_prueba_por_departamento: number };
   };
   predicciones_proximos_6_meses: Prediccion[];

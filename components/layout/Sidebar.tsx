@@ -10,11 +10,13 @@ import {
   QuestionMarkCircleIcon,
   Cog6ToothIcon,
   BookOpenIcon,
+  MapIcon,
 } from "@heroicons/react/24/outline";
 
 const navigation = [
   { name: "Inicio", href: "/", icon: HomeIcon },
   { name: "Predicciones IA", href: "/predicciones", icon: CpuChipIcon },
+  { name: "Focos históricos", href: "/historico", icon: MapIcon },
   { name: "¿Cómo se hizo?", href: "/como-se-hizo", icon: BookOpenIcon },
   { name: "Juego Educativo", href: "/juego", icon: PuzzlePieceIcon },
 ];
