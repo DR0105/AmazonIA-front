@@ -3,7 +3,8 @@
  *
  * Modela el flujo de presentación:
  *   - La mano viene del backend (REPARTIR_MANO_BACK).
- *   - Al seleccionar una carta, las restantes van al descarte.
+ *   - Al seleccionar una carta, las restantes permanecen en la mano.
+ *   - La carta seleccionada se muestra en su sector correspondiente.
  *   - El mazo local ya no se usa (deckCount viene del back).
  *
  * Fases: idle → desplegada → resolviendo → idle.
@@ -16,7 +17,7 @@ export type FaseVisual = "idle" | "desplegada" | "resolviendo";
 export interface EstadoVisual {
   /** Cartas actualmente en la mano visual (las que se muestran en los slots). */
   mano: CartaJugable[];
-  /** Cartas acumuladas en la pila de descarte (lado derecho). */
+  /** Cartas descartadas explícitamente por la interacción visual. */
   descarte: CartaJugable[];
   /** Cartas colocadas por sector (activeCards del back, solo visual). */
   sectores: Partial<Record<SectorId, CartaJugable[]>>;
@@ -30,6 +31,7 @@ export type AccionVisual =
   /** Recibe la mano ya definida por el backend y la despliega visualmente. */
   | { tipo: "REPARTIR_MANO_BACK"; cartas: CartaJugable[] }
   | { tipo: "SELECCIONAR"; cartaId: string }
+  | { tipo: "DESCARTAR"; cartaId: string }
   | { tipo: "FINALIZAR" };
 
 export const estadoVisualInicial: EstadoVisual = {
@@ -80,10 +82,21 @@ export function tableroVisualReducer(
       };
     }
 
+    case "DESCARTAR": {
+      const carta = estado.mano.find((item) => item.id === accion.cartaId);
+      if (!carta) return estado;
+      return {
+        ...estado,
+        mano: estado.mano.filter((item) => item.id !== accion.cartaId),
+        descarte: [...estado.descarte, carta],
+      };
+    }
+
     case "FINALIZAR":
       if (estado.fase !== "resolviendo") return estado;
-      // Vuelve a idle; la mano se actualizará desde el back en el próximo render
-      return { ...estado, mano: [], fase: "idle" };
+      // La carta elegida ya salió de la mano. Las demás deben seguir visibles
+      // para que el jugador pueda escoger otra sin volver a abrir el mazo.
+      return { ...estado, fase: "desplegada" };
 
     default:
       return estado;

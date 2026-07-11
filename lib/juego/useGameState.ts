@@ -8,12 +8,11 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import type { GameView, AvailableActions } from "@/types/juego";
+import type { GameResponse } from "@/types/juego";
 import { getStoredAccessToken } from "./session";
 
 export interface GameStateData {
-  state: GameView | null;
-  availableActions: AvailableActions | null;
+  game: GameResponse | null;
   cargando: boolean;
   error: string | null;
   refetch: () => void;
@@ -22,8 +21,7 @@ export interface GameStateData {
 const GAMES_URL = "/api/games";
 
 export function useGameState(gameId: string | null, pollMs = 0): GameStateData {
-  const [state, setState] = useState<GameView | null>(null);
-  const [availableActions, setAvailableActions] = useState<AvailableActions | null>(null);
+  const [game, setGame] = useState<GameResponse | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,9 +48,8 @@ export function useGameState(gameId: string | null, pollMs = 0): GameStateData {
 
       if (!res.ok) throw new Error(`GET /api/games/${gameId} → ${res.status}`);
 
-      const data = await res.json() as { state: GameView; availableActions: AvailableActions };
-      setState(data.state);
-      setAvailableActions(data.availableActions);
+      const data = await res.json() as GameResponse;
+      setGame(data);
     } catch (e) {
       if (fetchIdRef.current !== thisFetchId) return;
       if ((e as Error).name === "AbortError") return;
@@ -74,5 +71,5 @@ export function useGameState(gameId: string | null, pollMs = 0): GameStateData {
     return () => clearInterval(id);
   }, [pollMs, gameId, doFetch]);
 
-  return { state, availableActions, cargando, error, refetch: doFetch };
+  return { game, cargando, error, refetch: doFetch };
 }

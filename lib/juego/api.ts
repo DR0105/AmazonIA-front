@@ -44,6 +44,65 @@ export async function jugarCarta(
   return (await respuesta.json()) as GameResponse;
 }
 
+/** POST /api/v1/games/:id/commands — descarta una carta de la mano. */
+export async function descartarCarta(
+  accessToken: string,
+  gameId: string,
+  cardId: string,
+  expectedVersion: number,
+  signal?: AbortSignal,
+): Promise<GameResponse> {
+  const respuesta = await fetch(`${GAMES_URL}/${gameId}/commands`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      type: "discard_card",
+      cardId,
+      expectedVersion,
+    }),
+    signal,
+  });
+
+  if (!respuesta.ok) {
+    const cuerpo = await respuesta.text().catch(() => "");
+    throw new Error(
+      `POST /api/games/${gameId}/commands → ${respuesta.status}. ${cuerpo}`,
+    );
+  }
+
+  return (await respuesta.json()) as GameResponse;
+}
+
+/** POST /api/v1/games/:id/commands — avanza la ronda actual. */
+export async function finalizarTurno(
+  accessToken: string,
+  gameId: string,
+  expectedVersion: number,
+  signal?: AbortSignal,
+): Promise<GameResponse> {
+  const respuesta = await fetch(`${GAMES_URL}/${gameId}/commands`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ type: "end_turn", expectedVersion }),
+    signal,
+  });
+
+  if (!respuesta.ok) {
+    const cuerpo = await respuesta.text().catch(() => "");
+    throw new Error(
+      `POST /api/games/${gameId}/commands → ${respuesta.status}. ${cuerpo}`,
+    );
+  }
+
+  return (await respuesta.json()) as GameResponse;
+}
+
 /**
  * POST /api/v1/games — crea una nueva partida.
  * Devuelve el estado inicial completo con `id`, `state` y `availableActions`.

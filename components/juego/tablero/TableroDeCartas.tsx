@@ -4,7 +4,7 @@
  * TableroDeCartas — tablero visual conectado al backend.
  *
  * Al seleccionar una carta:
- *   1. Animación local: la carta vuela a su sector, las restantes al descarte.
+ *   1. Animación local: la carta elegida se resuelve; las demás permanecen en la mano.
  *   2. POST /api/games/:id/commands { type:"play_card", cardId, expectedVersion }
  *   3. La respuesta actualiza el estado en pantalla (mano, sectores, recursos, deforestación).
  */
@@ -14,10 +14,8 @@ import { LayoutGroup } from "framer-motion";
 
 import { ANIM } from "@/lib/tablero/animaciones";
 import { useCatalogo } from "@/lib/catalog/useCatalogo";
-import { useGame } from "@/lib/juego/useGame";
 import { useGameState } from "@/lib/juego/useGameState";
-import { useGuestSessionToken } from "@/lib/juego/useGuestSessionToken";
-import { jugarCarta } from "@/lib/juego/api";
+import { descartarCarta, finalizarTurno, jugarCarta } from "@/lib/juego/api";
 import { getStoredAccessToken } from "@/lib/juego/session";
 import { estadoVisualInicial, tableroVisualReducer } from "@/lib/catalog/tableroVisual";
 import type { GameResponse } from "@/types/juego";
@@ -42,8 +40,6 @@ export const PARCHMENT = {
   slotBorder: "#C4A855",
 } as const;
 
-const DEFORESTACION_MAX = 2500;
-
 function Aviso({ mensaje, tono = "info" }: { mensaje: string; tono?: "info" | "error" }) {
   return (
     <div
@@ -62,41 +58,30 @@ function Aviso({ mensaje, tono = "info" }: { mensaje: string; tono?: "info" | "e
   );
 }
 
-export function TableroDeCartas() {
-  // ── Sesión, catálogo y partida ────────────────────────────────────────────
-  useGuestSessionToken();
+export function TableroDeCartas({ gameId }: { gameId: string | null }) {
+  // ── Catálogo y estado de la partida ───────────────────────────────────────
   const { cartas: catalogoCartas, cargando: cargandoCatalogo } = useCatalogo();
   const cartaPorId = useMemo(
     () => new Map(catalogoCartas.map((c) => [c.id, c])),
     [catalogoCartas],
   );
 
-  const { gameId, partida: partidaInicial, cargando: creandoPartida, error: errorPartida } = useGame();
+  // El mismo ID creado por POST /api/games se usa para consultar el estado
+  // vigente con GET /api/games/{gameId}.
+  const {
+    game: partidaActual,
+    cargando: cargandoPartida,
+    error: errorPartida,
+    refetch: consultarPartida,
+  } = useGameState(gameId);
 
-  // Estado del juego: arranca con el estado de la creación de partida,
-  // luego se sobreescribe con respuestas del endpoint play_card.
+  // El GET inicial y las respuestas de comandos actualizan la misma partida.
   const [gameData, setGameData] = useState<GameResponse | null>(null);
 
-  // Cuando useGame termina, inicializa gameData
+  // Cuando llega GET /api/games/{gameId}, inicializa el tablero.
   useEffect(() => {
-    if (partidaInicial && !gameData) setGameData(partidaInicial);
-  }, [partidaInicial, gameData]);
-
-  // useGameState solo para el fetch inicial si gameData aún es null
-  const { state: stateFromFetch } = useGameState(gameData ? null : gameId);
-  useEffect(() => {
-    if (stateFromFetch && !gameData) {
-      // Construimos un GameResponse mínimo a partir del fetch
-      setGameData((prev) => prev ?? {
-        id: gameId!,
-        version: 0,
-        createdAt: "",
-        updatedAt: "",
-        state: stateFromFetch,
-        availableActions: { cards: {}, events: {}, discards: {}, canEndTurn: { allowed: false } },
-      });
-    }
-  }, [stateFromFetch, gameData, gameId]);
+    if (partidaActual) setGameData(partidaActual);
+  }, [partidaActual]);
 
   const state      = gameData?.state ?? null;
   const version    = gameData?.version ?? 0;
@@ -126,10 +111,16 @@ export function TableroDeCartas() {
         if (!token) throw new Error("Sin token de sesión.");
 
         // 2. Llama al backend con el expectedVersion de la respuesta actual
-        const nuevaPartida = await jugarCarta(token, gameId, cartaId, version);
+        const partidaTrasCarta = await jugarCarta(token, gameId, cartaId, version);
+        setGameData(partidaTrasCarta);
 
-        // 3. Actualiza el estado en pantalla con la respuesta del back
+        // 3. Toda carta jugada cierra la ronda con la versión recién devuelta.
+        const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasCarta.version);
+
         setGameData(nuevaPartida);
+
+        // Confirma el estado persistido usando el mismo gameId.
+        await consultarPartida();
       } catch (e) {
         console.error("Error al jugar carta:", e);
         // Si falla, revertimos la animación volviendo a idle
@@ -138,7 +129,32 @@ export function TableroDeCartas() {
         jugandoRef.current = false;
       }
     },
-    [gameId, state, version],
+    [gameId, state, version, consultarPartida],
+  );
+
+  const handleDescartar = useCallback(
+    async (cartaId: string) => {
+      if (jugandoRef.current || !gameId || !state) return;
+      if (!gameData?.availableActions.discards[cartaId]?.allowed) return;
+      jugandoRef.current = true;
+
+      try {
+        const token = getStoredAccessToken();
+        if (!token) throw new Error("Sin token de sesión.");
+
+        const partidaTrasDescarte = await descartarCarta(token, gameId, cartaId, version);
+        setGameData(partidaTrasDescarte);
+        dispatch({ tipo: "DESCARTAR", cartaId });
+        const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasDescarte.version);
+        setGameData(nuevaPartida);
+        await consultarPartida();
+      } catch (e) {
+        console.error("Error al descartar carta:", e);
+      } finally {
+        jugandoRef.current = false;
+      }
+    },
+    [gameData?.availableActions.discards, gameId, state, version, consultarPartida],
   );
 
   // ── Derivar datos de presentación ─────────────────────────────────────────
@@ -158,19 +174,28 @@ export function TableroDeCartas() {
         .filter((c): c is CartaJugable => c !== undefined);
       if (cartas.length > 0) resultado[sectorId as SectorId] = cartas;
     }
-    return resultado;
-  }, [state?.sectors, cartaPorId]);
 
-  const deforestacionPct = useMemo(() => {
-    if (!state?.environment?.deforestation) return 0;
-    return Math.min(100, Math.round((state.environment.deforestation / DEFORESTACION_MAX) * 100));
-  }, [state?.environment?.deforestation]);
+    // Durante la animación, mostramos la carta seleccionada directamente en
+    // su sector. Al llegar la respuesta del backend, sus cartas activas pasan
+    // a ser la fuente definitiva sin duplicarlas.
+    for (const [sectorId, cartas] of Object.entries(estadoVisual.sectores)) {
+      const existentes = resultado[sectorId as SectorId] ?? [];
+      resultado[sectorId as SectorId] = [
+        ...existentes,
+        ...cartas.filter((carta) => !existentes.some((actual) => actual.id === carta.id)),
+      ];
+    }
+    return resultado;
+  }, [state?.sectors, cartaPorId, estadoVisual.sectores]);
 
   // ── Carga / error ─────────────────────────────────────────────────────────
-  const cargando = cargandoCatalogo || creandoPartida || !state;
+  // Solo mostramos la pantalla de carga mientras aún no exista un estado.
+  // Las consultas posteriores de GET actualizan gameData mediante useEffect
+  // sin desmontar ni refrescar visualmente todo el tablero.
+  const cargando = cargandoCatalogo || (!state && cargandoPartida);
   const error    = errorPartida;
 
-  if (cargando) return <Aviso mensaje="Cargando partida…" />;
+  if (cargando || !state) return <Aviso mensaje="Cargando partida…" />;
   if (error)    return <Aviso mensaje={error} tono="error" />;
 
   const deckCount      = state.cards?.deckCount ?? 0;
@@ -194,7 +219,7 @@ export function TableroDeCartas() {
         <PanelEventos />
 
         <PanelEstado
-          deforestacion={deforestacionPct}
+          deforestacion={state.environment?.deforestation ?? 0}
           recursos={{
             money:  state.resources?.money  ?? 0,
             land:   state.resources?.land   ?? 0,
@@ -210,7 +235,10 @@ export function TableroDeCartas() {
             habilitado={mazoHabilitado}
             agotado={mazoAgotado}
             onClick={() => {
-              if (mano.length > 0) dispatch({ tipo: "REPARTIR_MANO_BACK", cartas: mano });
+              if (mano.length > 0) {
+                dispatch({ tipo: "REPARTIR_MANO_BACK", cartas: mano });
+                void consultarPartida();
+              }
             }}
           />
 
@@ -226,11 +254,12 @@ export function TableroDeCartas() {
               visible={manoVisible}
               interactiva={manoInteractiva}
               accionesDisponibles={gameData?.availableActions?.cards ?? {}}
+              accionesDescarte={gameData?.availableActions?.discards ?? {}}
               onSeleccionar={handleSeleccionar}
             />
           </div>
 
-          <PilaDescarte cartas={estadoVisual.descarte} />
+          <PilaDescarte cartas={estadoVisual.descarte} onDescartar={handleDescartar} />
         </div>
       </div>
     </LayoutGroup>

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import { ANIM } from "@/lib/tablero/animaciones";
 import type { CartaJugable } from "@/types/tablero";
@@ -93,6 +93,7 @@ export interface ManoDesplegadaProps {
   visible: boolean;
   interactiva: boolean;
   accionesDisponibles?: Record<string, ActionResult>;
+  accionesDescarte?: Record<string, ActionResult>;
   onSeleccionar: (id: string) => void;
 }
 
@@ -127,6 +128,7 @@ export function ManoDesplegada({
   visible,
   interactiva,
   accionesDisponibles = {},
+  accionesDescarte = {},
   onSeleccionar,
 }: ManoDesplegadaProps) {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
@@ -139,6 +141,7 @@ export function ManoDesplegada({
 
         const accion   = accionesDisponibles[carta.id];
         const permitida = accion === undefined || accion.allowed === true;
+        const descartable = accionesDescarte[carta.id]?.allowed === true;
         const tooltipMsg = !permitida ? traducirMensaje(accion?.code, accion?.message) : null;
         const clickable  = interactiva && permitida;
 
@@ -161,10 +164,16 @@ export function ManoDesplegada({
                 data-testid={`carta-${carta.id}`}
                 data-sector={carta.sector}
                 data-permitida={String(permitida)}
+                draggable={interactiva && descartable}
                 disabled={!clickable}
                 aria-disabled={!clickable}
                 aria-label={`${carta.nombre}${tooltipMsg ? ` — ${tooltipMsg}` : ""}`}
                 onClick={() => { if (clickable) onSeleccionar(carta.id); }}
+                onDragStartCapture={(event: DragEvent<HTMLButtonElement>) => {
+                  if (!descartable) return;
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", carta.id);
+                }}
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
