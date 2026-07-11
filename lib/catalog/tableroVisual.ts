@@ -1,9 +1,10 @@
 /**
- * Estado visual del tablero (sin lógica de juego).
+ * Estado visual del tablero.
  *
- * Solo modela el flujo de presentación: barajar el mazo, repartir la mano,
- * elegir una carta (que se coloca en su sector) y enviar las demás al descarte.
- * No hay barra, ni efectos, ni puntaje.
+ * Modela el flujo de presentación:
+ *   - La mano viene del backend (REPARTIR_MANO_BACK).
+ *   - Al seleccionar una carta, las restantes van al descarte.
+ *   - El mazo local ya no se usa (deckCount viene del back).
  *
  * Fases: idle → desplegada → resolviendo → idle.
  */
@@ -13,21 +14,23 @@ import type { CartaJugable, SectorId } from "@/types/tablero";
 export type FaseVisual = "idle" | "desplegada" | "resolviendo";
 
 export interface EstadoVisual {
-  mazo: CartaJugable[];
+  /** Cartas actualmente en la mano visual (las que se muestran en los slots). */
   mano: CartaJugable[];
+  /** Cartas acumuladas en la pila de descarte (lado derecho). */
   descarte: CartaJugable[];
+  /** Cartas colocadas por sector (activeCards del back, solo visual). */
   sectores: Partial<Record<SectorId, CartaJugable[]>>;
   fase: FaseVisual;
+  /** Mazo local vacío — el conteo real viene de state.cards.deckCount del back. */
+  mazo: CartaJugable[];
 }
 
 export type AccionVisual =
   | { tipo: "INICIALIZAR"; cartas: CartaJugable[] }
-  | { tipo: "REPARTIR" }
+  /** Recibe la mano ya definida por el backend y la despliega visualmente. */
+  | { tipo: "REPARTIR_MANO_BACK"; cartas: CartaJugable[] }
   | { tipo: "SELECCIONAR"; cartaId: string }
   | { tipo: "FINALIZAR" };
-
-/** Tamaño objetivo de la mano al repartir. */
-export const CARTAS_POR_MANO = 5;
 
 export const estadoVisualInicial: EstadoVisual = {
   mazo: [],
@@ -37,37 +40,22 @@ export const estadoVisualInicial: EstadoVisual = {
   fase: "idle",
 };
 
-/** Baraja una copia del arreglo (Fisher-Yates). Puro: no muta la entrada. */
-export function barajar<T>(entrada: readonly T[]): T[] {
-  const copia = [...entrada];
-  for (let i = copia.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copia[i], copia[j]] = [copia[j], copia[i]];
-  }
-  return copia;
-}
-
 export function tableroVisualReducer(
   estado: EstadoVisual,
-  accion: AccionVisual
+  accion: AccionVisual,
 ): EstadoVisual {
   switch (accion.tipo) {
     case "INICIALIZAR":
       return {
-        mazo: barajar(accion.cartas),
-        mano: [],
-        descarte: [],
-        sectores: {},
-        fase: "idle",
+        ...estadoVisualInicial,
       };
 
-    case "REPARTIR": {
-      if (estado.fase !== "idle" || estado.mazo.length === 0) return estado;
-      const n = Math.min(CARTAS_POR_MANO, estado.mazo.length);
+    case "REPARTIR_MANO_BACK": {
+      // Solo despliega si estamos en idle y la mano tiene cartas
+      if (estado.fase !== "idle" || accion.cartas.length === 0) return estado;
       return {
         ...estado,
-        mano: estado.mazo.slice(0, n),
-        mazo: estado.mazo.slice(n),
+        mano: accion.cartas,
         fase: "desplegada",
       };
     }
@@ -76,11 +64,11 @@ export function tableroVisualReducer(
       if (estado.fase !== "desplegada") return estado;
       const elegida = estado.mano.find((c) => c.id === accion.cartaId);
       if (!elegida) return estado;
-      const restantes = estado.mano.filter((c) => c.id !== accion.cartaId);
+      // Las cartas restantes se quedan en la mano; solo se quita la elegida
+      const manoSinElegida = estado.mano.filter((c) => c.id !== accion.cartaId);
       return {
         ...estado,
-        mano: [],
-        // la elegida ocupa su sector; las demás van al descarte (última arriba)
+        mano: manoSinElegida,
         sectores: {
           ...estado.sectores,
           [elegida.sector]: [
@@ -88,14 +76,14 @@ export function tableroVisualReducer(
             elegida,
           ],
         },
-        descarte: [...estado.descarte, ...restantes],
         fase: "resolviendo",
       };
     }
 
     case "FINALIZAR":
       if (estado.fase !== "resolviendo") return estado;
-      return { ...estado, fase: "idle" };
+      // Vuelve a idle; la mano se actualizará desde el back en el próximo render
+      return { ...estado, mano: [], fase: "idle" };
 
     default:
       return estado;

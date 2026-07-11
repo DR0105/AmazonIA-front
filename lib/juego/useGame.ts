@@ -1,20 +1,23 @@
 "use client";
 
 /**
- * Hook que crea una partida al entrar a la vista del juego.
- *
- * En lugar de polling, escucha el evento nativo `storage` del navegador
- * que dispara cuando useGuestSessionToken escribe el accessToken en
- * localStorage. Esto evita la carrera entre ambos hooks.
+ * useGame — crea una partida al entrar a la vista del juego.
  *
  * Flujo:
- *  1. Si ya hay token válido en localStorage → crea la partida de inmediato.
- *  2. Si no hay token → espera el evento `storage` para recibirlo.
- *  3. Una vez con token → POST /api/v1/games y guarda el id.
+ *  1. useGuestSessionToken (en TableroDeCartas) obtiene/renueva el token.
+ *  2. Este hook espera el token (localStorage o evento custom) y luego
+ *     hace POST /api/games.
+ *
+ * Corrección respecto a la versión anterior:
+ *  - En React Strict Mode el efecto se monta → desmonta → remonta.
+ *    El AbortController del primer mount cancelaba la request y el guard
+ *    `ejecutado.current` impedía relanzarla en el segundo mount.
+ *  - Solución: no abortar si ya tenemos el gameId (ya terminó bien);
+ *    solo abortar si todavía estamos esperando.
  */
 
 import { useState, useEffect, useRef } from "react";
-import { getStoredAccessToken, ACCESS_TOKEN_STORAGE_KEY } from "./session";
+import { getStoredAccessToken } from "./session";
 import { crearPartida } from "./api";
 import type { GameResponse } from "@/types/juego";
 
@@ -33,18 +36,25 @@ export function useGame(): EstadoPartida {
     error: null,
   });
 
-  const ejecutado = useRef(false);
+  // Ref para saber si ya tenemos partida y no relanzar
+  const tienePartida = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (ejecutado.current) return;
-    ejecutado.current = true;
+    // Si ya logramos una partida en un mount anterior no hacemos nada
+    if (tienePartida.current) return;
 
     const controlador = new AbortController();
+    abortRef.current = controlador;
 
     const iniciar = async (token: string) => {
+      // Doble check: entre el momento en que se llama y cuando corre,
+      // puede que un mount anterior ya terminó
+      if (tienePartida.current || controlador.signal.aborted) return;
       try {
         const partida = await crearPartida(token, controlador.signal);
         if (controlador.signal.aborted) return;
+        tienePartida.current = true;
         setEstado({ gameId: partida.id, partida, cargando: false, error: null });
       } catch (e) {
         if (controlador.signal.aborted) return;
@@ -52,37 +62,37 @@ export function useGame(): EstadoPartida {
           gameId: null,
           partida: null,
           cargando: false,
-          error: e instanceof Error ? e.message : "Error desconocido.",
+          error: e instanceof Error ? e.message : "Error al crear la partida.",
         });
       }
     };
 
-    // Caso 1: el token ya existe en localStorage (ej: recarga de página)
+    // Caso 1: token ya en localStorage
     const tokenExistente = getStoredAccessToken();
     if (tokenExistente) {
       void iniciar(tokenExistente);
-      return () => controlador.abort();
+    } else {
+      // Caso 2: esperamos el evento que dispara session.ts al guardar el token
+      const onTokenListo = (e: Event) => {
+        const token = (e as CustomEvent<string>).detail;
+        if (!token) return;
+        window.removeEventListener("amazonia:token", onTokenListo);
+        void iniciar(token);
+      };
+      window.addEventListener("amazonia:token", onTokenListo);
+
+      // cleanup del listener si el componente se desmonta antes de recibirlo
+      return () => {
+        window.removeEventListener("amazonia:token", onTokenListo);
+        // Solo abortamos si todavía no tenemos partida
+        if (!tienePartida.current) controlador.abort();
+      };
     }
 
-    // Caso 2: esperamos a que useGuestSessionToken escriba el token.
-    // El evento `storage` se dispara en la misma pestaña cuando se usa
-    // localStorage.setItem() — lo capturamos con un CustomEvent wrapper
-    // porque el evento nativo `storage` solo se propaga a OTRAS pestañas.
-    const onTokenListo = (e: Event) => {
-      const token = (e as CustomEvent<string>).detail;
-      if (!token || controlador.signal.aborted) return;
-      // Una vez recibido el token, no necesitamos seguir escuchando
-      window.removeEventListener("amazonia:token", onTokenListo);
-      void iniciar(token);
-    };
-
-    window.addEventListener("amazonia:token", onTokenListo);
-
     return () => {
-      controlador.abort();
-      window.removeEventListener("amazonia:token", onTokenListo);
+      if (!tienePartida.current) controlador.abort();
     };
-  }, []);
+  }, []); // sin dependencias: se ejecuta una sola vez por montaje real
 
   return estado;
 }
