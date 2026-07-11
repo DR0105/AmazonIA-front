@@ -9,7 +9,14 @@
  *   3. La respuesta actualiza el estado en pantalla (mano, sectores, recursos, deforestación).
  */
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { LayoutGroup } from "framer-motion";
 
 import { ANIM } from "@/lib/tablero/animaciones";
@@ -17,7 +24,10 @@ import { useCatalogo } from "@/lib/catalog/useCatalogo";
 import { useGameState } from "@/lib/juego/useGameState";
 import { descartarCarta, finalizarTurno, jugarCarta } from "@/lib/juego/api";
 import { getStoredAccessToken } from "@/lib/juego/session";
-import { estadoVisualInicial, tableroVisualReducer } from "@/lib/catalog/tableroVisual";
+import {
+  estadoVisualInicial,
+  tableroVisualReducer,
+} from "@/lib/catalog/tableroVisual";
 import type { GameResponse } from "@/types/juego";
 import type { CartaJugable, SectorId } from "@/types/tablero";
 
@@ -40,7 +50,13 @@ export const PARCHMENT = {
   slotBorder: "#C4A855",
 } as const;
 
-function Aviso({ mensaje, tono = "info" }: { mensaje: string; tono?: "info" | "error" }) {
+function Aviso({
+  mensaje,
+  tono = "info",
+}: {
+  mensaje: string;
+  tono?: "info" | "error";
+}) {
   return (
     <div
       role={tono === "error" ? "alert" : "status"}
@@ -52,7 +68,11 @@ function Aviso({ mensaje, tono = "info" }: { mensaje: string; tono?: "info" | "e
         fontFamily: "'Georgia', serif",
       }}
     >
-      {tono === "error" && <p className="text-2xl mb-2" aria-hidden>⚠️</p>}
+      {tono === "error" && (
+        <p className="text-2xl mb-2" aria-hidden>
+          ⚠️
+        </p>
+      )}
       <p className="text-sm">{mensaje}</p>
     </div>
   );
@@ -83,17 +103,23 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
     if (partidaActual) setGameData(partidaActual);
   }, [partidaActual]);
 
-  const state      = gameData?.state ?? null;
-  const version    = gameData?.version ?? 0;
+  const state = gameData?.state ?? null;
+  const version = gameData?.version ?? 0;
 
   // ── Estado visual local (animación) ──────────────────────────────────────
-  const [estadoVisual, dispatch] = useReducer(tableroVisualReducer, estadoVisualInicial);
+  const [estadoVisual, dispatch] = useReducer(
+    tableroVisualReducer,
+    estadoVisualInicial,
+  );
   const jugandoRef = useRef(false); // evita doble clic durante la llamada al back
 
   // Cierre de animación resolviendo → idle
   useEffect(() => {
     if (estadoVisual.fase !== "resolviendo") return;
-    const t = setTimeout(() => dispatch({ tipo: "FINALIZAR" }), ANIM.DESCARTE_MS);
+    const t = setTimeout(
+      () => dispatch({ tipo: "FINALIZAR" }),
+      ANIM.DESCARTE_MS,
+    );
     return () => clearTimeout(t);
   }, [estadoVisual.fase]);
 
@@ -111,13 +137,18 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         if (!token) throw new Error("Sin token de sesión.");
 
         // 2. Llama al backend con el expectedVersion de la respuesta actual
-        const partidaTrasCarta = await jugarCarta(token, gameId, cartaId, version);
+        const partidaTrasCarta = await jugarCarta(
+          token,
+          gameId,
+          cartaId,
+          version,
+        );
         setGameData(partidaTrasCarta);
 
         // 3. Toda carta jugada cierra la ronda con la versión recién devuelta.
-        const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasCarta.version);
+        // const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasCarta.version);
 
-        setGameData(nuevaPartida);
+        //setGameData(nuevaPartida);
 
         // Confirma el estado persistido usando el mismo gameId.
         await consultarPartida();
@@ -142,11 +173,16 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         const token = getStoredAccessToken();
         if (!token) throw new Error("Sin token de sesión.");
 
-        const partidaTrasDescarte = await descartarCarta(token, gameId, cartaId, version);
+        const partidaTrasDescarte = await descartarCarta(
+          token,
+          gameId,
+          cartaId,
+          version,
+        );
         setGameData(partidaTrasDescarte);
         dispatch({ tipo: "DESCARTAR", cartaId });
-        const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasDescarte.version);
-        setGameData(nuevaPartida);
+        // const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasDescarte.version);
+        //setGameData(nuevaPartida);
         await consultarPartida();
       } catch (e) {
         console.error("Error al descartar carta:", e);
@@ -154,7 +190,13 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         jugandoRef.current = false;
       }
     },
-    [gameData?.availableActions.discards, gameId, state, version, consultarPartida],
+    [
+      gameData?.availableActions.discards,
+      gameId,
+      state,
+      version,
+      consultarPartida,
+    ],
   );
 
   // ── Derivar datos de presentación ─────────────────────────────────────────
@@ -165,7 +207,9 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
       .filter((c): c is CartaJugable => c !== undefined);
   }, [state?.cards?.hand, cartaPorId]);
 
-  const sectoresConCartas = useMemo((): Partial<Record<SectorId, CartaJugable[]>> => {
+  const sectoresConCartas = useMemo((): Partial<
+    Record<SectorId, CartaJugable[]>
+  > => {
     if (!state?.sectors) return {};
     const resultado: Partial<Record<SectorId, CartaJugable[]>> = {};
     for (const [sectorId, sectorState] of Object.entries(state.sectors)) {
@@ -182,7 +226,9 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
       const existentes = resultado[sectorId as SectorId] ?? [];
       resultado[sectorId as SectorId] = [
         ...existentes,
-        ...cartas.filter((carta) => !existentes.some((actual) => actual.id === carta.id)),
+        ...cartas.filter(
+          (carta) => !existentes.some((actual) => actual.id === carta.id),
+        ),
       ];
     }
     return resultado;
@@ -193,15 +239,16 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
   // Las consultas posteriores de GET actualizan gameData mediante useEffect
   // sin desmontar ni refrescar visualmente todo el tablero.
   const cargando = cargandoCatalogo || (!state && cargandoPartida);
-  const error    = errorPartida;
+  const error = errorPartida;
 
   if (cargando || !state) return <Aviso mensaje="Cargando partida…" />;
-  if (error)    return <Aviso mensaje={error} tono="error" />;
+  if (error) return <Aviso mensaje={error} tono="error" />;
 
-  const deckCount      = state.cards?.deckCount ?? 0;
-  const mazoAgotado    = deckCount === 0 && mano.length === 0;
+  const deckCount = state.cards?.deckCount ?? 0;
+  const mazoAgotado = deckCount === 0 && mano.length === 0;
   const mazoHabilitado = estadoVisual.fase === "idle" && mano.length > 0;
-  const manoVisible    = estadoVisual.fase !== "idle" && estadoVisual.mano.length > 0;
+  const manoVisible =
+    estadoVisual.fase !== "idle" && estadoVisual.mano.length > 0;
   const manoInteractiva = estadoVisual.fase === "desplegada";
 
   return (
@@ -210,9 +257,11 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         data-testid="tablero-de-cartas"
         className="flex flex-col gap-3 p-4 rounded-3xl"
         style={{
-          background: "radial-gradient(ellipse at 20% 20%, #F2E8C0 0%, #D4B86A 100%)",
+          background:
+            "radial-gradient(ellipse at 20% 20%, #F2E8C0 0%, #D4B86A 100%)",
           border: `6px solid ${PARCHMENT.border}`,
-          boxShadow: "inset 0 2px 12px rgba(61,43,31,0.18), 0 8px 32px rgba(61,43,31,0.25)",
+          boxShadow:
+            "inset 0 2px 12px rgba(61,43,31,0.18), 0 8px 32px rgba(61,43,31,0.25)",
           fontFamily: "'Georgia', 'Times New Roman', serif",
         }}
       >
@@ -221,8 +270,8 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         <PanelEstado
           deforestacion={state.environment?.deforestation ?? 0}
           recursos={{
-            money:  state.resources?.money  ?? 0,
-            land:   state.resources?.land   ?? 0,
+            money: state.resources?.money ?? 0,
+            land: state.resources?.land ?? 0,
             people: state.resources?.people ?? 0,
           }}
         />
@@ -259,7 +308,10 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
             />
           </div>
 
-          <PilaDescarte cartas={estadoVisual.descarte} onDescartar={handleDescartar} />
+          <PilaDescarte
+            cartas={estadoVisual.descarte}
+            onDescartar={handleDescartar}
+          />
         </div>
       </div>
     </LayoutGroup>

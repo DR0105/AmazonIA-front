@@ -38,21 +38,38 @@ const GRADIENTE_BARRA =
 
 /** Segmentos de color de la barra (visual, no funcional) */
 const SEGMENTOS = [
-  "#1a7a1a", "#2e8b2e", "#3ea83e", "#5cba2e", "#8ab800",
-  "#b0c000", "#c8c800", "#dca000", "#e08000", "#d94000",
-  "#cc2800", "#b81010",
+  "#1a7a1a",
+  "#2e8b2e",
+  "#3ea83e",
+  "#5cba2e",
+  "#8ab800",
+  "#b0c000",
+  "#c8c800",
+  "#dca000",
+  "#e08000",
+  "#d94000",
+  "#cc2800",
+  "#b81010",
 ];
 
 const TAMANO_RANGO = 250;
 const MAX_DEFORESTACION = SEGMENTOS.length * TAMANO_RANGO; // 3000
 
 function IndicadorRecurso({
-  icono, valor, etiqueta,
-}: { icono: string; valor: number; etiqueta: string }) {
+  icono,
+  valor,
+  etiqueta,
+}: {
+  icono: string;
+  valor: number;
+  etiqueta: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-0.5">
       {/* Espacio para ícono — TODO: reemplaza el emoji con tu SVG */}
-      <span className="text-2xl leading-none" aria-hidden>{icono}</span>
+      <span className="text-2xl leading-none" aria-hidden>
+        {icono}
+      </span>
       <span
         className="text-2xl font-bold leading-none tabular-nums"
         style={{ color: PARCHMENT.text, fontFamily: "'Georgia', serif" }}
@@ -74,7 +91,10 @@ export function PanelEstado({
   recursos = { money: 2, land: 0, people: 1 },
 }: PanelEstadoProps) {
   // Cada uno de los 12 cuadros cubre 250 puntos: 0–249, 250–499, …, 2750–2999.
-  const valorDeforestacion = Math.min(MAX_DEFORESTACION - 1, Math.max(0, deforestacion));
+  const valorDeforestacion = Math.min(
+    MAX_DEFORESTACION - 1,
+    Math.max(0, deforestacion),
+  );
   const indiceRango = Math.floor(valorDeforestacion / TAMANO_RANGO);
   const thumbPct = (valorDeforestacion / (MAX_DEFORESTACION - 1)) * 100;
 
@@ -98,7 +118,9 @@ export function PanelEstado({
         <div className="w-full flex items-center gap-2">
           {/* Ícono árbol frondoso — TODO: reemplaza con tu SVG */}
           <div className="flex flex-col items-center flex-shrink-0">
-            <span className="text-2xl leading-none" aria-hidden>🌳</span>
+            <span className="text-2xl leading-none" aria-hidden>
+              🌳
+            </span>
             <span
               className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
               style={{ color: PARCHMENT.textMuted }}
@@ -124,7 +146,7 @@ export function PanelEstado({
                   style={{
                     flex: 1,
                     backgroundColor: color,
-                    opacity: i <= indiceRango ? 1 : 0.28,
+                    //opacity: i <= indiceRango ? 1 : 0.28,
                     borderRight:
                       i < SEGMENTOS.length - 1
                         ? "1px solid rgba(0,0,0,0.12)"
@@ -154,7 +176,9 @@ export function PanelEstado({
 
           {/* Ícono árbol seco — TODO: reemplaza con tu SVG */}
           <div className="flex flex-col items-center flex-shrink-0">
-            <span className="text-2xl leading-none" aria-hidden>🪵</span>
+            <span className="text-2xl leading-none" aria-hidden>
+              🪵
+            </span>
             <span
               className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
               style={{ color: "#8B1A1A" }}
@@ -182,19 +206,43 @@ export function PanelEstado({
 
         <div className="flex items-center gap-6">
           {/* Dinero — TODO: reemplaza 💰 con ícono de moneda dorada */}
-          <IndicadorRecurso icono="💰" valor={recursos.money} etiqueta="Dinero" />
+          <IndicadorRecurso
+            icono="💰"
+            valor={recursos.money}
+            etiqueta="Dinero"
+          />
 
           {/* Divisor */}
-          <div style={{ width: 1, height: 40, backgroundColor: PARCHMENT.borderLight }} />
+          <div
+            style={{
+              width: 1,
+              height: 40,
+              backgroundColor: PARCHMENT.borderLight,
+            }}
+          />
 
           {/* Tierra — TODO: reemplaza 🌱 con ícono de tierra */}
-          <IndicadorRecurso icono="🌱" valor={recursos.land} etiqueta="Tierra" />
+          <IndicadorRecurso
+            icono="🌱"
+            valor={recursos.land}
+            etiqueta="Tierra"
+          />
 
           {/* Divisor */}
-          <div style={{ width: 1, height: 40, backgroundColor: PARCHMENT.borderLight }} />
+          <div
+            style={{
+              width: 1,
+              height: 40,
+              backgroundColor: PARCHMENT.borderLight,
+            }}
+          />
 
           {/* Personas — TODO: reemplaza 👥 con ícono de personas */}
-          <IndicadorRecurso icono="👥" valor={recursos.people} etiqueta="Personas" />
+          <IndicadorRecurso
+            icono="👥"
+            valor={recursos.people}
+            etiqueta="Personas"
+          />
         </div>
       </div>
     </div>
