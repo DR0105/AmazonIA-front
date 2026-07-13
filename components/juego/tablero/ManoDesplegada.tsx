@@ -94,34 +94,13 @@ export interface ManoDesplegadaProps {
   interactiva: boolean;
   accionesDisponibles?: Record<string, ActionResult>;
   accionesDescarte?: Record<string, ActionResult>;
+  puedeDescartar?: boolean;
   onSeleccionar: (id: string) => void;
+  onDescartar?: (id: string) => void;
 }
 
 const ANCHO_SLOT = 104;
 const ALTO_SLOT  = 148;
-const N_SLOTS    = 5;
-
-function SlotVacio({ index }: { index: number }) {
-  return (
-    <div
-      key={`slot-${index}`}
-      aria-hidden
-      className="rounded-xl flex items-center justify-center flex-shrink-0"
-      style={{
-        width: ANCHO_SLOT,
-        height: ALTO_SLOT,
-        backgroundColor: PARCHMENT.slotBg,
-        border: `2px solid ${PARCHMENT.slotBorder}`,
-        boxShadow: "inset 0 1px 4px rgba(61,43,31,0.12)",
-      }}
-    >
-      <span className="text-3xl opacity-20" aria-hidden style={{ color: PARCHMENT.border }}>
-        🌿
-      </span>
-    </div>
-  );
-}
-
 // ─── Componente principal ────────────────────────────────────────────────────
 export function ManoDesplegada({
   cartas,
@@ -129,21 +108,24 @@ export function ManoDesplegada({
   interactiva,
   accionesDisponibles = {},
   accionesDescarte = {},
+  puedeDescartar = false,
   onSeleccionar,
+  onDescartar,
 }: ManoDesplegadaProps) {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   return (
     <div className="flex gap-3 items-end justify-center">
-      {Array.from({ length: N_SLOTS }).map((_, i) => {
-        const carta = visible ? cartas[i] : undefined;
-        if (!carta) return <SlotVacio key={i} index={i} />;
+      {(visible ? cartas : []).map((carta, i) => {
 
         const accion   = accionesDisponibles[carta.id];
         const permitida = accion === undefined || accion.allowed === true;
-        const descartable = accionesDescarte[carta.id]?.allowed === true;
+        const descartable = puedeDescartar && accionesDescarte[carta.id]?.allowed === true;
         const tooltipMsg = !permitida ? traducirMensaje(accion?.code, accion?.message) : null;
         const clickable  = interactiva && permitida;
+        // En discard_required no se puede jugar la carta, pero el botón debe
+        // seguir habilitado para que el navegador permita arrastrarla.
+        const interactuable = clickable || (interactiva && descartable);
 
         return (
           <AnimatePresence key={carta.id} mode="wait">
@@ -165,10 +147,16 @@ export function ManoDesplegada({
                 data-sector={carta.sector}
                 data-permitida={String(permitida)}
                 draggable={interactiva && descartable}
-                disabled={!clickable}
-                aria-disabled={!clickable}
+                disabled={!interactuable}
+                aria-disabled={!interactuable}
                 aria-label={`${carta.nombre}${tooltipMsg ? ` — ${tooltipMsg}` : ""}`}
-                onClick={() => { if (clickable) onSeleccionar(carta.id); }}
+                onClick={() => {
+                  if (descartable) {
+                    onDescartar?.(carta.id);
+                  } else if (clickable) {
+                    onSeleccionar(carta.id);
+                  }
+                }}
                 onDragStartCapture={(event: DragEvent<HTMLButtonElement>) => {
                   if (!descartable) return;
                   event.dataTransfer.effectAllowed = "move";
@@ -185,7 +173,7 @@ export function ManoDesplegada({
                 style={{
                   width: ANCHO_SLOT,
                   height: ALTO_SLOT,
-                  cursor: clickable ? "pointer" : "not-allowed",
+                  cursor: descartable ? "grab" : clickable ? "pointer" : "not-allowed",
                   opacity: permitida ? 1 : 0.38,
                   filter: permitida ? "none" : "grayscale(60%)",
                   border: `2px solid ${permitida ? PARCHMENT.border : "#9A8870"}`,

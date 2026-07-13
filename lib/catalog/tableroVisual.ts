@@ -53,8 +53,8 @@ export function tableroVisualReducer(
       };
 
     case "REPARTIR_MANO_BACK": {
-      // Solo despliega si estamos en idle y la mano tiene cartas
-      if (estado.fase !== "idle" || accion.cartas.length === 0) return estado;
+      // Refleja exactamente la mano que devuelve el backend después de cada ronda.
+      if (estado.fase === "resolviendo" || accion.cartas.length === 0) return estado;
       return {
         ...estado,
         mano: accion.cartas,

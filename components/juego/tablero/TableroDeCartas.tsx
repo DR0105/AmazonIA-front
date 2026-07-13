@@ -97,11 +97,16 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
 
   // El GET inicial y las respuestas de comandos actualizan la misma partida.
   const [gameData, setGameData] = useState<GameResponse | null>(null);
+  const [manoInicialMostrada, setManoInicialMostrada] = useState(false);
 
   // Cuando llega GET /api/games/{gameId}, inicializa el tablero.
   useEffect(() => {
     if (partidaActual) setGameData(partidaActual);
   }, [partidaActual]);
+
+  useEffect(() => {
+    setManoInicialMostrada(false);
+  }, [gameId]);
 
   const state = gameData?.state ?? null;
   const version = gameData?.version ?? 0;
@@ -145,11 +150,6 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         );
         setGameData(partidaTrasCarta);
 
-        // 3. Toda carta jugada cierra la ronda con la versión recién devuelta.
-        // const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasCarta.version);
-
-        //setGameData(nuevaPartida);
-
         // Confirma el estado persistido usando el mismo gameId.
         await consultarPartida();
       } catch (e) {
@@ -166,6 +166,7 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
   const handleDescartar = useCallback(
     async (cartaId: string) => {
       if (jugandoRef.current || !gameId || !state) return;
+      if (state.phase !== "discard_required") return;
       if (!gameData?.availableActions.discards[cartaId]?.allowed) return;
       jugandoRef.current = true;
 
@@ -181,8 +182,6 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         );
         setGameData(partidaTrasDescarte);
         dispatch({ tipo: "DESCARTAR", cartaId });
-        // const nuevaPartida = await finalizarTurno(token, gameId, partidaTrasDescarte.version);
-        //setGameData(nuevaPartida);
         await consultarPartida();
       } catch (e) {
         console.error("Error al descartar carta:", e);
@@ -206,6 +205,41 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
       .map((id) => cartaPorId.get(id))
       .filter((c): c is CartaJugable => c !== undefined);
   }, [state?.cards?.hand, cartaPorId]);
+
+  const handleMazoClick = useCallback(async () => {
+    if (jugandoRef.current || !gameId || !state) return;
+
+    // La partida nueva ya trae initialHandSize cartas. El primer clic solo las
+    // revela; no debe ejecutar end_turn ni robar una sexta carta.
+    if (!manoInicialMostrada) {
+      dispatch({ tipo: "REPARTIR_MANO_BACK", cartas: mano });
+      setManoInicialMostrada(true);
+      void consultarPartida();
+      return;
+    }
+
+    jugandoRef.current = true;
+
+    try {
+      const token = getStoredAccessToken();
+      if (!token) throw new Error("Sin token de sesión.");
+
+      // El clic en el mazo finaliza la ronda y el motor roba drawPerRound cartas.
+      const nuevaPartida = await finalizarTurno(token, gameId, version);
+      setGameData(nuevaPartida);
+
+      const cartasActualizadas = nuevaPartida.state.cards.hand
+        .map((id) => cartaPorId.get(id))
+        .filter((c): c is CartaJugable => c !== undefined);
+      dispatch({ tipo: "REPARTIR_MANO_BACK", cartas: cartasActualizadas });
+
+      await consultarPartida();
+    } catch (e) {
+      console.error("Error al finalizar turno:", e);
+    } finally {
+      jugandoRef.current = false;
+    }
+  }, [gameId, state, version, cartaPorId, consultarPartida, manoInicialMostrada, mano]);
 
   const sectoresConCartas = useMemo((): Partial<
     Record<SectorId, CartaJugable[]>
@@ -246,7 +280,7 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
 
   const deckCount = state.cards?.deckCount ?? 0;
   const mazoAgotado = deckCount === 0 && mano.length === 0;
-  const mazoHabilitado = estadoVisual.fase === "idle" && mano.length > 0;
+  const mazoHabilitado = estadoVisual.fase !== "resolviendo" && deckCount > 0;
   const manoVisible =
     estadoVisual.fase !== "idle" && estadoVisual.mano.length > 0;
   const manoInteractiva = estadoVisual.fase === "desplegada";
@@ -283,12 +317,7 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
             cartasRestantes={deckCount}
             habilitado={mazoHabilitado}
             agotado={mazoAgotado}
-            onClick={() => {
-              if (mano.length > 0) {
-                dispatch({ tipo: "REPARTIR_MANO_BACK", cartas: mano });
-                void consultarPartida();
-              }
-            }}
+            onClick={() => { void handleMazoClick(); }}
           />
 
           <div className="flex-1 flex flex-col items-center gap-2">
@@ -304,7 +333,9 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
               interactiva={manoInteractiva}
               accionesDisponibles={gameData?.availableActions?.cards ?? {}}
               accionesDescarte={gameData?.availableActions?.discards ?? {}}
+              puedeDescartar={state.phase === "discard_required"}
               onSeleccionar={handleSeleccionar}
+              onDescartar={handleDescartar}
             />
           </div>
 
