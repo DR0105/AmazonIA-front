@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# analytics/data — archivos pesados generados por Python (no van al repo)
+# Los archivos pequeños sí se incluyen (predicciones.json, colombia.geojson)
+analytics/data/puntos_calor_por_semana_mes_con_coordenadas.csv
+analytics/data/puntos_historicos.json
+analytics/.env.local

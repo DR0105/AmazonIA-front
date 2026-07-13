@@ -17,6 +17,11 @@ RECENT_YEARS = 3        # años recientes para coordenadas de alto riesgo
 CSV_INPUT   = 'data/puntos_calor_por_semana_mes_con_coordenadas.csv'
 JSON_OUTPUT = 'data/predicciones.json'
 
+# También exportar a public/data/ para que Vercel sirva los archivos
+import os, shutil
+PUBLIC_DATA = os.path.join(os.path.dirname(__file__), '..', 'public', 'data')
+os.makedirs(PUBLIC_DATA, exist_ok=True)
+
 # =============================================================================
 # 1. Carga de datos
 # =============================================================================
@@ -381,6 +386,11 @@ with open(JSON_OUTPUT, 'w', encoding='utf-8') as f:
 
 print(f"\nArchivo JSON generado: {JSON_OUTPUT}")
 
+# Sincronizar a public/data/ para Vercel
+shutil.copy(JSON_OUTPUT, os.path.join(PUBLIC_DATA, 'predicciones.json'))
+shutil.copy(CSV_INPUT,   os.path.join(PUBLIC_DATA, 'puntos_calor.csv'))
+print(f"Archivos sincronizados a public/data/")
+
 # =============================================================================
 # 12. Generar puntos_historicos.json para el mapa del front
 # =============================================================================
@@ -417,6 +427,9 @@ with open(HISTORICOS_FILE, 'w', encoding='utf-8') as f:
     json.dump(historicos_output, f, ensure_ascii=False, separators=(',', ':'))
 
 print(f"puntos_historicos.json generado: {len(puntos_hist):,} puntos → {HISTORICOS_FILE}")
+
+# Sincronizar puntos_historicos.json a public/data/
+shutil.copy(HISTORICOS_FILE, os.path.join(PUBLIC_DATA, 'puntos_historicos.json'))
 
 # =============================================================================
 # 13. Resumen
