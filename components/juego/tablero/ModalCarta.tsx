@@ -9,32 +9,9 @@ import Image from "next/image";
 import { X, CirclePlay, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
+import { getCardMeta, traducirTipo } from "@/lib/catalog/cardsCatalog";
 import type { CartaJugable } from "@/types/tablero";
 import { PARCHMENT } from "./TableroDeCartas";
-
-// Datos extra de las cartas que no vienen del backend pero sí del JSON del engine
-import cartasJson from "@/../colombia-ecosystems-engine/assets/cards.amazonas_mvp.json";
-
-interface CostoCarta { money: number; people: number; land: number; }
-interface CartaExtra {
-  id: string;
-  cost: CostoCarta;
-  rulesText: string;
-  requires: string[];
-  type: string;
-  sector: string;
-}
-
-const CARTAS_EXTRA_MAP = new Map<string, CartaExtra>(
-  (cartasJson as CartaExtra[]).map((c) => [c.id, c])
-);
-
-const ETIQUETAS_TIPO: Record<string, string> = {
-  structure: "Estructura",
-  action:    "Acción",
-  policy:    "Política",
-  project:   "Proyecto",
-};
 
 const ETIQUETAS_SECTOR: Record<string, string> = {
   industry:   "Industria",
@@ -69,8 +46,8 @@ export function ModalCarta({
   const [montado, setMontado] = useState(false);
   useEffect(() => { setMontado(true); }, []);
 
-  const extra = CARTAS_EXTRA_MAP.get(carta.id);
-  const tipo   = ETIQUETAS_TIPO[extra?.type ?? carta.tipo] ?? carta.tipo;
+  const extra = getCardMeta(carta.id);
+  const tipo   = extra ? traducirTipo(extra.type) : (carta.tipo ?? "");
   const sector = ETIQUETAS_SECTOR[extra?.sector ?? carta.sector] ?? carta.sector;
 
   if (!montado) return null;
