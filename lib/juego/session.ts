@@ -1,6 +1,6 @@
-export const GUEST_SESSION_URL = "http://localhost:8080/api/v1/sessions/guest";
-export const CURRENT_SESSION_URL = "http://localhost:8080/api/v1/sessions/current";
-export const REFRESH_SESSION_URL = "http://localhost:8080/api/v1/sessions/refresh";
+export const GUEST_SESSION_URL = "/api/sessions/guest";
+export const CURRENT_SESSION_URL = "/api/sessions/current";
+export const REFRESH_SESSION_URL = "/api/sessions/refresh";
 export const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 
 export interface SessionCurrentInfo {
