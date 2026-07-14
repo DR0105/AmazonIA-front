@@ -4,6 +4,9 @@ const BACKEND_BASE =
   process.env.BACKEND_URL ?? "http://localhost:8080/api/v1";
 
 const nextConfig: NextConfig = {
+  env: {
+    BACKEND_URL: BACKEND_BASE,
+  },
   async rewrites() {
     return [
       {
