@@ -42,7 +42,7 @@ export function GameContent() {
           game_id: {gameId}
         </p>
       )}
-      <TableroDeCartas />
+      <TableroDeCartas gameId={gameId} />
     </div>
   );
 }

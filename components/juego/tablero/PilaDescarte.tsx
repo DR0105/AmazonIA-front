@@ -13,12 +13,14 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { type DragEvent } from "react";
 import { ANIM } from "@/lib/tablero/animaciones";
 import type { CartaJugable } from "@/types/tablero";
 import { PARCHMENT } from "./TableroDeCartas";
 
 export interface PilaDescarteProps {
   cartas: CartaJugable[];
+  onDescartar?: (cardId: string) => void;
 }
 
 const ANCHO = 104;
@@ -26,15 +28,23 @@ const ALTO = 148;
 const OFFSET = 4;
 const MAX_OFFSET = 8;
 
-export function PilaDescarte({ cartas }: PilaDescarteProps) {
+export function PilaDescarte({ cartas, onDescartar }: PilaDescarteProps) {
   const vacia = cartas.length === 0;
   const indiceTope = cartas.length - 1;
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const cardId = event.dataTransfer.getData("text/plain");
+    if (cardId) onDescartar?.(cardId);
+  };
 
   return (
     <div
       data-testid="pila-descarte"
       className="flex flex-col items-center gap-2 flex-shrink-0"
       style={{ width: ANCHO + 20 }}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={handleDrop}
     >
       {/* Pila o slot vacío */}
       <div

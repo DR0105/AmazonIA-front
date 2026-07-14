@@ -10,12 +10,17 @@ from sklearn.metrics import mean_absolute_error, r2_score, accuracy_score, class
 # Configuración
 # =============================================================================
 RANDOM_STATE = 42
-HORIZON = 6        # meses a pronosticar hacia adelante
-TEST_MONTHS = 12   # tamaño del set de prueba (últimos N meses por departamento)
-RECENT_YEARS = 3   # años recientes para coordenadas de alto riesgo
+HORIZON      = 6        # meses a pronosticar hacia adelante
+TEST_MONTHS  = 12       # tamaño del set de prueba (últimos N meses por departamento)
+RECENT_YEARS = 3        # años recientes para coordenadas de alto riesgo
 
-CSV_INPUT  = 'data/puntos_calor_por_semana_mes_con_coordenadas.csv'
+CSV_INPUT   = 'data/puntos_calor_por_semana_mes_con_coordenadas.csv'
 JSON_OUTPUT = 'data/predicciones.json'
+
+# También exportar a public/data/ para que Vercel sirva los archivos
+import os, shutil
+PUBLIC_DATA = os.path.join(os.path.dirname(__file__), '..', 'public', 'data')
+os.makedirs(PUBLIC_DATA, exist_ok=True)
 
 # =============================================================================
 # 1. Carga de datos
@@ -25,18 +30,16 @@ print("Columnas:", df.columns.tolist())
 print("Registros cargados:", len(df))
 
 # =============================================================================
-# 2. Agregación mensual por departamento (incluye precipitación)
+# 2. Agregación mensual por departamento
 # =============================================================================
-monthly = df.groupby(['anio', 'mes', 'departamento']).agg(
-    total_mensual=('conteo_puntos', 'sum'),
-    precip_mm=('precip_mm', 'mean'),      # promedio de la precipitación de las semanas del mes
-).reset_index()
+monthly = df.groupby(['anio', 'mes', 'departamento'])['conteo_puntos'].sum().reset_index()
+monthly.rename(columns={'conteo_puntos': 'total_mensual'}, inplace=True)
 monthly['fecha'] = pd.to_datetime(dict(year=monthly['anio'], month=monthly['mes'], day=1))
 
 # =============================================================================
 # 3. Relleno de meses faltantes (huecos internos) con 0, por departamento
 # =============================================================================
-filled_frames = []
+filled_frames  = []
 cobertura_datos = {}
 
 for dept, g in monthly.groupby('departamento'):
@@ -45,9 +48,9 @@ for dept, g in monthly.groupby('departamento'):
 
     g_full = g.set_index('fecha').reindex(rango_completo)
     g_full['total_mensual'] = g_full['total_mensual'].fillna(0)
-    g_full['departamento'] = dept
-    g_full['anio'] = g_full.index.year
-    g_full['mes']  = g_full.index.month
+    g_full['departamento']  = dept
+    g_full['anio']          = g_full.index.year
+    g_full['mes']           = g_full.index.month
     g_full.index.name = 'fecha'
     g_full = g_full.reset_index()
 
@@ -92,17 +95,12 @@ print(monthly['riesgo'].value_counts())
 # =============================================================================
 # 5. Variables de rezago y medias móviles por departamento
 # =============================================================================
-# Nota: dept_code se mantiene como feature pero con un solo departamento por
-# modelo su varianza es constante → el modelo lo ignorará automáticamente.
-# Se conserva para que FEATURE_COLS sea idéntico entre modelos y facilite
-# comparar importancias entre departamentos.
-
 le = LabelEncoder()
 monthly['dept_code'] = le.fit_transform(monthly['departamento'])
 
 feature_frames = []
 for dept, g in monthly.groupby('departamento'):
-    g = g.sort_values('fecha').reset_index(drop=True).copy()
+    g    = g.sort_values('fecha').reset_index(drop=True).copy()
     serie = g['total_mensual']
     g['lag_1']  = serie.shift(1)
     g['lag_2']  = serie.shift(2)
@@ -112,27 +110,15 @@ for dept, g in monthly.groupby('departamento'):
     g['media_movil_3']  = serie.shift(1).rolling(3).mean()
     g['media_movil_6']  = serie.shift(1).rolling(6).mean()
     g['media_movil_12'] = serie.shift(1).rolling(12).mean()
-
-    # ── Lags de precipitación ─────────────────────────────────────────────────
-    # Se usa shift(1) para evitar fuga de información (la precipitación del mes
-    # actual aún no se conoce al momento de pronosticar).
-    precip = g['precip_mm'].fillna(g['precip_mm'].median())  # rellenar NaN con mediana del depto
-    g['precip_lag1'] = precip.shift(1)
-    g['precip_lag2'] = precip.shift(2)
-    g['precip_lag3'] = precip.shift(3)
-    g['precip_mm_3m'] = precip.shift(1).rolling(3).mean()    # promedio últimos 3 meses
-
     feature_frames.append(g)
 
 monthly = pd.concat(feature_frames, ignore_index=True)
 monthly['mes_sin'] = np.sin(2 * np.pi * monthly['mes'] / 12)
 monthly['mes_cos'] = np.cos(2 * np.pi * monthly['mes'] / 12)
 
-# dept_code excluido de FEATURE_COLS porque cada modelo es mono-departamento
 FEATURE_COLS = ['anio', 'mes', 'mes_sin', 'mes_cos',
                 'lag_1', 'lag_2', 'lag_3', 'lag_6', 'lag_12',
-                'media_movil_3', 'media_movil_6', 'media_movil_12',
-                'precip_lag1', 'precip_lag2', 'precip_lag3', 'precip_mm_3m']
+                'media_movil_3', 'media_movil_6', 'media_movil_12']
 
 model_data = monthly.dropna(subset=FEATURE_COLS).reset_index(drop=True)
 print(f"\nFilas utilizables tras crear variables de rezago: {len(model_data)}")
@@ -141,46 +127,38 @@ print(f"\nFilas utilizables tras crear variables de rezago: {len(model_data)}")
 # 6 + 7 + 8. Entrenamiento, evaluación e importancia por departamento
 # =============================================================================
 departamentos = sorted(model_data['departamento'].unique())
-modelos: dict[str, RandomForestRegressor] = {}
-metricas_por_depto: dict[str, dict] = {}
-importancias_por_depto: dict[str, dict] = {}
+modelos:                dict[str, RandomForestRegressor] = {}
+metricas_por_depto:     dict[str, dict]                  = {}
+importancias_por_depto: dict[str, dict]                  = {}
 
-# Acumuladores para métricas globales (promedio pesado por n_test)
 all_y_true, all_y_pred, all_y_true_risk, all_y_pred_risk = [], [], [], []
 
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("ENTRENAMIENTO POR DEPARTAMENTO")
-print("="*60)
+print("=" * 60)
 
 for dept in departamentos:
     g = model_data[model_data['departamento'] == dept].sort_values('fecha')
 
     if len(g) <= TEST_MONTHS:
-        # Muy pocos datos: usar todo para entrenamiento, sin evaluación
-        X_tr, y_tr = g[FEATURE_COLS], np.log1p(g['total_mensual'])
-        X_te, y_te_vals = pd.DataFrame(columns=FEATURE_COLS), np.array([])
+        X_tr, y_tr           = g[FEATURE_COLS], np.log1p(g['total_mensual'])
+        X_te, y_te_vals      = pd.DataFrame(columns=FEATURE_COLS), np.array([])
     else:
-        X_tr = g.iloc[:-TEST_MONTHS][FEATURE_COLS]
-        y_tr = np.log1p(g.iloc[:-TEST_MONTHS]['total_mensual'])
-        X_te = g.iloc[-TEST_MONTHS:][FEATURE_COLS]
+        X_tr     = g.iloc[:-TEST_MONTHS][FEATURE_COLS]
+        y_tr     = np.log1p(g.iloc[:-TEST_MONTHS]['total_mensual'])
+        X_te     = g.iloc[-TEST_MONTHS:][FEATURE_COLS]
         y_te_vals = g.iloc[-TEST_MONTHS:]['total_mensual'].values
 
     reg_dept = RandomForestRegressor(
-        n_estimators=300,
-        max_depth=10,
-        min_samples_leaf=2,
-        random_state=RANDOM_STATE,
-        n_jobs=-1,
+        n_estimators=300, max_depth=10, min_samples_leaf=2,
+        random_state=RANDOM_STATE, n_jobs=-1,
     )
     reg_dept.fit(X_tr, y_tr)
     modelos[dept] = reg_dept
-
-    # Importancia de variables
     importancias_por_depto[dept] = dict(zip(FEATURE_COLS, reg_dept.feature_importances_.tolist()))
 
-    # Evaluación
     if len(X_te) > 0:
-        y_pred_log = reg_dept.predict(X_te)
+        y_pred_log  = reg_dept.predict(X_te)
         y_pred_vals = np.clip(np.expm1(y_pred_log), 0, None)
 
         mae  = float(mean_absolute_error(y_te_vals, y_pred_vals))
@@ -193,14 +171,14 @@ for dept in departamentos:
         rep = classification_report(y_tr_risk, y_pr_risk, output_dict=True, zero_division=0)
 
         metricas_por_depto[dept] = {
-            'mae':               round(mae, 2),
-            'rmse':              round(rmse, 2),
-            'r2':                round(r2, 3),
-            'accuracy_riesgo':   round(acc, 3),
-            'precision_macro':   round(rep['macro avg']['precision'], 3),
-            'recall_macro':      round(rep['macro avg']['recall'], 3),
-            'f1_macro':          round(rep['macro avg']['f1-score'], 3),
-            'meses_evaluados':   int(len(X_te)),
+            'mae':             round(mae, 2),
+            'rmse':            round(rmse, 2),
+            'r2':              round(r2, 3),
+            'accuracy_riesgo': round(acc, 3),
+            'precision_macro': round(rep['macro avg']['precision'], 3),
+            'recall_macro':    round(rep['macro avg']['recall'], 3),
+            'f1_macro':        round(rep['macro avg']['f1-score'], 3),
+            'meses_evaluados': int(len(X_te)),
         }
 
         all_y_true.extend(y_te_vals.tolist())
@@ -215,7 +193,7 @@ for dept in departamentos:
         metricas_por_depto[dept] = {'nota': 'Datos insuficientes para evaluación'}
         print(f"  {dept:20s}  sin evaluación (datos insuficientes)")
 
-# Métricas globales (promedio sobre todos los test sets)
+# Métricas globales
 metricas_globales: dict = {}
 if all_y_true:
     mae_g  = float(mean_absolute_error(all_y_true, all_y_pred))
@@ -232,20 +210,31 @@ if all_y_true:
         'precision_macro':   round(rep_g['macro avg']['precision'], 3),
         'recall_macro':      round(rep_g['macro avg']['recall'], 3),
         'f1_macro':          round(rep_g['macro avg']['f1-score'], 3),
-        'meses_evaluados_total': int(len(all_y_true)),
-        'meses_evaluados_por_departamento': TEST_MONTHS,
+        'meses_evaluados_total':             int(len(all_y_true)),
+        'meses_evaluados_por_departamento':  TEST_MONTHS,
     }
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"GLOBAL  MAE={mae_g:.1f}  RMSE={rmse_g:.1f}  R2={r2_g:.3f}  Acc={acc_g:.3f}")
     print(classification_report(all_y_true_risk, all_y_pred_risk, zero_division=0))
 
-# Importancia media (promedio entre departamentos, para el gráfico global)
-importancias_media: dict[str, float] = {}
-for feat in FEATURE_COLS:
-    importancias_media[feat] = float(
-        np.mean([importancias_por_depto[d].get(feat, 0) for d in departamentos])
-    )
+# Importancia media entre departamentos
+importancias_media: dict[str, float] = {
+    feat: float(np.mean([importancias_por_depto[d].get(feat, 0) for d in departamentos]))
+    for feat in FEATURE_COLS
+}
+
+# Promedio histórico por departamento (para la tabla del dash)
+promedios_historicos = (
+    monthly[monthly['total_mensual'] > 0]
+    .groupby('departamento')['total_mensual']
+    .mean().round(1).to_dict()
+)
+for dept in departamentos:
+    if dept in metricas_por_depto and isinstance(metricas_por_depto[dept], dict):
+        metricas_por_depto[dept]['promedio_historico_mensual'] = round(
+            float(promedios_historicos.get(dept, 0)), 1
+        )
 
 # =============================================================================
 # 9. Pronóstico recursivo a 6 meses, por departamento
@@ -254,12 +243,12 @@ _hoy_pronostico = datetime.now(timezone.utc)
 _anio_actual    = _hoy_pronostico.year
 _mes_actual     = _hoy_pronostico.month
 
-predictions = []
+predictions: list = []
 meses_rellenados_por_depto: dict[str, list[str]] = {}
 
-print(f"\n{'='*60}")
+print(f"\n{'=' * 60}")
 print("PRONÓSTICO")
-print("="*60)
+print("=" * 60)
 
 for dept in departamentos:
     reg_dept  = modelos[dept]
@@ -267,24 +256,13 @@ for dept in departamentos:
     serie     = dept_hist['total_mensual'].tolist()
     last_date = dept_hist['fecha'].max()
 
-    # Serie de precipitación histórica del departamento
-    precip_serie = dept_hist['precip_mm'].fillna(dept_hist['precip_mm'].median()).tolist()
-    # Promedio de precipitación por mes calendario (para proyectar meses futuros)
-    precip_por_mes = (
-        dept_hist.assign(precip_filled=dept_hist['precip_mm'].fillna(dept_hist['precip_mm'].median()))
-        .groupby('mes')['precip_filled'].mean()
-        .to_dict()
-    )
-
-    # ── Rellenar gap hasta el mes previo al actual con ceros ─────────────────
+    # Rellenar gap hasta el mes previo al actual con ceros
     meses_rellenados: list[str] = []
-    cursor    = last_date + pd.DateOffset(months=1)
+    cursor     = last_date + pd.DateOffset(months=1)
     mes_limite = pd.Timestamp(year=_anio_actual, month=_mes_actual, day=1)
 
     while cursor < mes_limite:
         serie.append(0.0)
-        # Para precipitación del gap, usar promedio histórico de ese mes calendario
-        precip_serie.append(float(precip_por_mes.get(cursor.month, 0.0)))
         meses_rellenados.append(cursor.strftime('%Y-%m'))
         cursor += pd.DateOffset(months=1)
 
@@ -292,14 +270,14 @@ for dept in departamentos:
         print(f"  [{dept}] rellenados {meses_rellenados} con 0")
 
     meses_rellenados_por_depto[dept] = meses_rellenados
-    start_date = cursor   # primer mes a pronosticar
+    start_date = cursor  # primer mes a pronosticar
 
     for h in range(1, HORIZON + 1):
         future_date = start_date + pd.DateOffset(months=h - 1)
         anio_f = int(future_date.year)
         mes_f  = int(future_date.month)
 
-        lag_1  = serie[-1];  lag_2 = serie[-2];   lag_3 = serie[-3]
+        lag_1  = serie[-1];  lag_2 = serie[-2];  lag_3 = serie[-3]
         lag_6  = serie[-6];  lag_12 = serie[-12]
         media_3  = float(np.mean(serie[-3:]))
         media_6  = float(np.mean(serie[-6:]))
@@ -307,95 +285,65 @@ for dept in departamentos:
         mes_sin  = float(np.sin(2 * np.pi * mes_f / 12))
         mes_cos  = float(np.cos(2 * np.pi * mes_f / 12))
 
-        # Lags de precipitación (usamos la serie histórica/proyectada)
-        # Para meses futuros sin datos reales, usamos el promedio histórico del mes
-        p_lag1 = float(precip_serie[-1])
-        p_lag2 = float(precip_serie[-2])
-        p_lag3 = float(precip_serie[-3])
-        p_3m   = float(np.mean(precip_serie[-3:]))
-
         X_fut = pd.DataFrame(
             [[anio_f, mes_f, mes_sin, mes_cos,
               lag_1, lag_2, lag_3, lag_6, lag_12,
-              media_3, media_6, media_12,
-              p_lag1, p_lag2, p_lag3, p_3m]],
+              media_3, media_6, media_12]],
             columns=FEATURE_COLS
         )
 
         pred_log   = reg_dept.predict(X_fut)[0]
         pred_total = max(0.0, float(np.expm1(pred_log)))
 
-        X_arr       = X_fut.values
-        arbol_preds = np.expm1([t.predict(X_arr)[0] for t in reg_dept.estimators_])
+        arbol_preds  = np.expm1([t.predict(X_fut.values)[0] for t in reg_dept.estimators_])
         incertidumbre = float(np.std(arbol_preds))
 
-        riesgo = label_risk(dept, pred_total)
-
         predictions.append({
-            'anio':                  anio_f,
-            'mes':                   mes_f,
-            'departamento':          dept,
-            'total_predicho':        round(pred_total, 1),
+            'anio':                   anio_f,
+            'mes':                    mes_f,
+            'departamento':           dept,
+            'total_predicho':         round(pred_total, 1),
             'incertidumbre_estimada': round(incertidumbre, 1),
-            'riesgo_predicho':       riesgo,
+            'riesgo_predicho':        label_risk(dept, pred_total),
         })
         serie.append(pred_total)
-        precip_serie.append(float(precip_por_mes.get(mes_f, 0.0)))
 
 df_pred = pd.DataFrame(predictions)
 
-# Red de seguridad: descartar meses pasados
+# Descartar meses pasados
 _hoy2 = datetime.now(timezone.utc)
 df_pred = df_pred[
     (df_pred['anio'] > _hoy2.year) |
     ((df_pred['anio'] == _hoy2.year) & (df_pred['mes'] >= _hoy2.month))
 ].reset_index(drop=True)
 
-meses_resultado = sorted(df_pred[['anio', 'mes']].drop_duplicates().itertuples(index=False, name=None))
-print(f"\nMeses en el pronóstico: {meses_resultado}")
+print(f"\nMeses en el pronóstico: "
+      f"{sorted(df_pred[['anio','mes']].drop_duplicates().itertuples(index=False, name=None))}")
 
 # =============================================================================
 # 10. Coordenadas históricas recientes para alto riesgo
 # =============================================================================
-max_anio      = int(df['anio'].max())
+max_anio        = int(df['anio'].max())
 anio_min_coords = max_anio - RECENT_YEARS + 1
 
 high_risk_points = []
 for _, row in df_pred[df_pred['riesgo_predicho'] == 'alto'].iterrows():
     dept  = row['departamento']
     month = int(row['mes'])
-
-    mask        = (df['departamento'] == dept) & (df['mes'] == month) & (df['anio'] >= anio_min_coords)
+    mask  = (df['departamento'] == dept) & (df['mes'] == month) & (df['anio'] >= anio_min_coords)
     coords_list = df.loc[mask, 'coordenadas_json'].apply(json.loads)
-    points      = [c for sub in coords_list for c in sub]
-
+    points = [c for sub in coords_list for c in sub]
     high_risk_points.append({
-        'departamento':          dept,
-        'mes':                   month,
-        'anio_prediccion':       int(row['anio']),
-        'anios_considerados':    f"{anio_min_coords}-{max_anio}",
-        'coordenadas':           points,
+        'departamento':           dept,
+        'mes':                    month,
+        'anio_prediccion':        int(row['anio']),
+        'anios_considerados':     f"{anio_min_coords}-{max_anio}",
+        'coordenadas':            points,
         'total_puntos_historicos': len(points),
     })
 
-# Promedio histórico de focos por departamento (sobre meses con datos > 0)
-promedios_historicos = (
-    monthly[monthly['total_mensual'] > 0]
-    .groupby('departamento')['total_mensual']
-    .mean()
-    .round(1)
-    .to_dict()
-)
-# Inyectar promedio_historico_mensual en cada entrada de metricas_por_depto
-for dept in departamentos:
-    promedios_historicos.get(dept, None)
-    if dept in metricas_por_depto and isinstance(metricas_por_depto[dept], dict):
-        metricas_por_depto[dept]['promedio_historico_mensual'] = round(
-            float(promedios_historicos.get(dept, 0)), 1
-        )
-
 # =============================================================================
-# 11. JSON de salida
+# 11. JSON de predicciones
 # =============================================================================
 output_json = {
     'metadata': {
@@ -416,14 +364,13 @@ output_json = {
         'importancia_variables_media':      importancias_media,
         'importancia_variables_por_departamento': importancias_por_depto,
         'parametros': {
-            'modelos':                          'uno por departamento',
-            'horizonte_meses':                  HORIZON,
-            'meses_prueba_por_departamento':    TEST_MONTHS,
+            'modelos':                         'uno por departamento',
+            'horizonte_meses':                 HORIZON,
+            'meses_prueba_por_departamento':   TEST_MONTHS,
             'anios_recientes_para_coordenadas': RECENT_YEARS,
         },
         'notas': [
-            "Se entrena un modelo independiente por departamento para capturar "
-            "la escala y estacionalidad propia de cada uno.",
+            "Se entrena un modelo independiente por departamento.",
             "Los meses sin registros se rellenaron con 0 para no distorsionar rezagos.",
             "Si el último dato está antes del mes actual, los meses intermedios "
             "se rellenan con 0 antes del pronóstico (ver meses_rellenados_con_cero).",
@@ -439,16 +386,19 @@ with open(JSON_OUTPUT, 'w', encoding='utf-8') as f:
 
 print(f"\nArchivo JSON generado: {JSON_OUTPUT}")
 
+# Sincronizar a public/data/ para Vercel
+shutil.copy(JSON_OUTPUT, os.path.join(PUBLIC_DATA, 'predicciones.json'))
+shutil.copy(CSV_INPUT,   os.path.join(PUBLIC_DATA, 'puntos_calor.csv'))
+print(f"Archivos sincronizados a public/data/")
+
 # =============================================================================
 # 12. Generar puntos_historicos.json para el mapa del front
 # =============================================================================
 print("\nGenerando puntos_historicos.json...")
 
-MESES_ES_DICT = {1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',
-                 7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'}
-
 df_hist = pd.read_csv(CSV_INPUT,
-                      usecols=['anio','mes','semana_mes','departamento','municipio','paisaje','coordenadas_json'])
+                      usecols=['anio', 'mes', 'semana_mes', 'departamento',
+                                'municipio', 'paisaje', 'coordenadas_json'])
 
 puntos_hist: list = []
 for _, row in df_hist.iterrows():
@@ -477,6 +427,9 @@ with open(HISTORICOS_FILE, 'w', encoding='utf-8') as f:
     json.dump(historicos_output, f, ensure_ascii=False, separators=(',', ':'))
 
 print(f"puntos_historicos.json generado: {len(puntos_hist):,} puntos → {HISTORICOS_FILE}")
+
+# Sincronizar puntos_historicos.json a public/data/
+shutil.copy(HISTORICOS_FILE, os.path.join(PUBLIC_DATA, 'puntos_historicos.json'))
 
 # =============================================================================
 # 13. Resumen

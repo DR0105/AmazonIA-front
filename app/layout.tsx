@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { ChatWidget } from "@/components/chatbot/ChatWidget";
 
 export const metadata: Metadata = {
   title: "AmazonIA – Scientific Monitoring",
@@ -41,6 +42,7 @@ export default function RootLayout({
             {children}
           </main>
         </div>
+        <ChatWidget />
       </body>
     </html>
   );

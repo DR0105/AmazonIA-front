@@ -10,8 +10,8 @@
  * Mientras no estén disponibles se muestran los defaults del mockup.
  *
  * ── PERSONALIZACIÓN ──────────────────────────────────────────────────────────
- * - Para conectar la barra de deforestación a datos reales, pasa `deforestacion`
- *   como prop (0–100, donde 100 = ALTA).
+ * - La prop `deforestacion` recibe el valor real del backend (0–2999).
+ *   Los doce segmentos representan intervalos consecutivos de 250 puntos.
  * - Para conectar los recursos, pasa `recursos` con { money, land, people }.
  * - Los íconos de árbol/árbol seco y de recursos son placeholders emoji;
  *   reemplázalos con tus SVGs cuando los tengas.
@@ -27,7 +27,7 @@ export interface Recursos {
 }
 
 export interface PanelEstadoProps {
-  /** Nivel de deforestación 0–100, donde 0 = BAJA y 100 = ALTA. Default: 34 */
+  /** Deforestación devuelta por la partida: 0–2999. Default: 340 */
   deforestacion?: number;
   /** Recursos actuales del jugador. Default: mock del escenario inicial */
   recursos?: Recursos;
@@ -38,18 +38,38 @@ const GRADIENTE_BARRA =
 
 /** Segmentos de color de la barra (visual, no funcional) */
 const SEGMENTOS = [
-  "#1a7a1a", "#2e8b2e", "#3ea83e", "#5cba2e", "#8ab800",
-  "#b0c000", "#c8c800", "#dca000", "#e08000", "#d94000",
-  "#cc2800", "#b81010",
+  "#1a7a1a",
+  "#2e8b2e",
+  "#3ea83e",
+  "#5cba2e",
+  "#8ab800",
+  "#b0c000",
+  "#c8c800",
+  "#dca000",
+  "#e08000",
+  "#d94000",
+  "#cc2800",
+  "#b81010",
 ];
 
+const TAMANO_RANGO = 250;
+const MAX_DEFORESTACION = SEGMENTOS.length * TAMANO_RANGO; // 3000
+
 function IndicadorRecurso({
-  icono, valor, etiqueta,
-}: { icono: string; valor: number; etiqueta: string }) {
+  icono,
+  valor,
+  etiqueta,
+}: {
+  icono: string;
+  valor: number;
+  etiqueta: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-0.5">
       {/* Espacio para ícono — TODO: reemplaza el emoji con tu SVG */}
-      <span className="text-2xl leading-none" aria-hidden>{icono}</span>
+      <span className="text-2xl leading-none" aria-hidden>
+        {icono}
+      </span>
       <span
         className="text-2xl font-bold leading-none tabular-nums"
         style={{ color: PARCHMENT.text, fontFamily: "'Georgia', serif" }}
@@ -67,11 +87,16 @@ function IndicadorRecurso({
 }
 
 export function PanelEstado({
-  deforestacion = 34,
+  deforestacion = 340,
   recursos = { money: 2, land: 0, people: 1 },
 }: PanelEstadoProps) {
-  // Posición del indicador (thumb) en % sobre el gradiente
-  const thumbPct = Math.min(100, Math.max(0, deforestacion));
+  // Cada uno de los 12 cuadros cubre 250 puntos: 0–249, 250–499, …, 2750–2999.
+  const valorDeforestacion = Math.min(
+    MAX_DEFORESTACION - 1,
+    Math.max(0, deforestacion),
+  );
+  const indiceRango = Math.floor(valorDeforestacion / TAMANO_RANGO);
+  const thumbPct = (valorDeforestacion / (MAX_DEFORESTACION - 1)) * 100;
 
   return (
     <div
@@ -93,7 +118,9 @@ export function PanelEstado({
         <div className="w-full flex items-center gap-2">
           {/* Ícono árbol frondoso — TODO: reemplaza con tu SVG */}
           <div className="flex flex-col items-center flex-shrink-0">
-            <span className="text-2xl leading-none" aria-hidden>🌳</span>
+            <span className="text-2xl leading-none" aria-hidden>
+              🌳
+            </span>
             <span
               className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
               style={{ color: PARCHMENT.textMuted }}
@@ -115,9 +142,11 @@ export function PanelEstado({
               {SEGMENTOS.map((color, i) => (
                 <div
                   key={i}
+                  title={`${i * TAMANO_RANGO}–${(i + 1) * TAMANO_RANGO - 1}`}
                   style={{
                     flex: 1,
                     backgroundColor: color,
+                    //opacity: i <= indiceRango ? 1 : 0.28,
                     borderRight:
                       i < SEGMENTOS.length - 1
                         ? "1px solid rgba(0,0,0,0.12)"
@@ -129,7 +158,7 @@ export function PanelEstado({
 
             {/* Indicador (thumb) */}
             <div
-              aria-label={`Deforestación: ${thumbPct}%`}
+              aria-label={`Deforestación: ${valorDeforestacion}; rango ${indiceRango * TAMANO_RANGO}–${(indiceRango + 1) * TAMANO_RANGO - 1}`}
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
               style={{
                 left: `${thumbPct}%`,
@@ -147,7 +176,9 @@ export function PanelEstado({
 
           {/* Ícono árbol seco — TODO: reemplaza con tu SVG */}
           <div className="flex flex-col items-center flex-shrink-0">
-            <span className="text-2xl leading-none" aria-hidden>🪵</span>
+            <span className="text-2xl leading-none" aria-hidden>
+              🪵
+            </span>
             <span
               className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
               style={{ color: "#8B1A1A" }}
@@ -175,19 +206,43 @@ export function PanelEstado({
 
         <div className="flex items-center gap-6">
           {/* Dinero — TODO: reemplaza 💰 con ícono de moneda dorada */}
-          <IndicadorRecurso icono="💰" valor={recursos.money} etiqueta="Dinero" />
+          <IndicadorRecurso
+            icono="💰"
+            valor={recursos.money}
+            etiqueta="Dinero"
+          />
 
           {/* Divisor */}
-          <div style={{ width: 1, height: 40, backgroundColor: PARCHMENT.borderLight }} />
+          <div
+            style={{
+              width: 1,
+              height: 40,
+              backgroundColor: PARCHMENT.borderLight,
+            }}
+          />
 
           {/* Tierra — TODO: reemplaza 🌱 con ícono de tierra */}
-          <IndicadorRecurso icono="🌱" valor={recursos.land} etiqueta="Tierra" />
+          <IndicadorRecurso
+            icono="🌱"
+            valor={recursos.land}
+            etiqueta="Tierra"
+          />
 
           {/* Divisor */}
-          <div style={{ width: 1, height: 40, backgroundColor: PARCHMENT.borderLight }} />
+          <div
+            style={{
+              width: 1,
+              height: 40,
+              backgroundColor: PARCHMENT.borderLight,
+            }}
+          />
 
           {/* Personas — TODO: reemplaza 👥 con ícono de personas */}
-          <IndicadorRecurso icono="👥" valor={recursos.people} etiqueta="Personas" />
+          <IndicadorRecurso
+            icono="👥"
+            valor={recursos.people}
+            etiqueta="Personas"
+          />
         </div>
       </div>
     </div>

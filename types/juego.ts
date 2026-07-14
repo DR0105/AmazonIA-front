@@ -21,7 +21,7 @@ export interface GameView {
   schemaVersion: number;
   scenarioId: string;
   round: number;
-  phase: string;
+  phase: "decision" | "discard_required" | "finished";
   resources: Resources;
   environment: EnvironmentState;
   sectors: Record<string, SectorState>;
@@ -41,7 +41,7 @@ export interface Resources {
 export interface EnvironmentState {
   deforestation: number;
   temperatureLabel: string;
-  tippingPointsCrossed: string[] | null;
+  tippingPointsCrossed: number[] | null;
 }
 
 export interface SectorState {
@@ -68,15 +68,17 @@ export interface EventStateView {
 
 export interface ActiveEvent {
   id: string;
-  [key: string]: unknown;
+  roundsRemaining: number;
 }
 
 export interface VictoryState {
   completed: boolean;
+  route?: string;
 }
 
 export interface DefeatState {
   gameOver: boolean;
+  reason?: string;
 }
 
 // ─── Acciones disponibles ────────────────────────────────────────────────────
@@ -91,14 +93,15 @@ export interface AvailableActions {
   cards: Record<string, ActionResult>;
   events: Record<string, ActionResult>;
   discards: Record<string, ActionResult>;
-  canEndTurn: { allowed: boolean };
+  canEndTurn: ActionResult;
 }
 
 // ─── Eventos de dominio ──────────────────────────────────────────────────────
 
 export interface DomainEvent {
   type: string;
-  [key: string]: unknown;
+  message: string;
+  data?: Record<string, unknown>;
 }
 
 // ─── Lista de partidas (GET /api/v1/games) ───────────────────────────────────
