@@ -11,6 +11,8 @@ import {
   refreshGuestSession,
 } from "./session";
 
+const REFRESH_MARGIN_MS = 60_000;
+
 export function useGuestSessionToken(enabled = true): void {
   useEffect(() => {
     if (!enabled) {
@@ -35,7 +37,7 @@ export function useGuestSessionToken(enabled = true): void {
         return;
       }
 
-      const delay = expiresAtDate.getTime() - Date.now();
+      const delay = expiresAtDate.getTime() - Date.now() - REFRESH_MARGIN_MS;
       if (delay <= 0) {
         void refreshAndReschedule(token);
         return;

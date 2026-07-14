@@ -227,6 +227,7 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
       // El clic en el mazo finaliza la ronda y el motor roba drawPerRound cartas.
       const nuevaPartida = await finalizarTurno(token, gameId, version);
       setGameData(nuevaPartida);
+      dispatch({ tipo: "AVANZAR_RONDA" });
 
       const cartasActualizadas = nuevaPartida.state.cards.hand
         .map((id) => cartaPorId.get(id))

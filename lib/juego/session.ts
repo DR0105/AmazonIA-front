@@ -3,6 +3,8 @@ export const CURRENT_SESSION_URL = "/api/sessions/current";
 export const REFRESH_SESSION_URL = "/api/sessions/refresh";
 export const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 
+let refreshInFlight: Promise<string> | null = null;
+
 export interface SessionCurrentInfo {
   expiresAt: string | null;
 }
@@ -120,7 +122,10 @@ export function getStoredAccessToken(): string | null {
 }
 
 export async function createGuestSession(): Promise<string> {
-  const response = await fetch(GUEST_SESSION_URL, { method: "POST" });
+  const response = await fetch(GUEST_SESSION_URL, {
+    method: "POST",
+    credentials: "include",
+  });
 
   if (!response.ok) {
     throw new Error(`Guest session request failed with status ${response.status}`);
@@ -142,6 +147,7 @@ export async function getCurrentSessionInfo(token?: string | null): Promise<Sess
 
   const response = await fetch(CURRENT_SESSION_URL, {
     method: "GET",
+    credentials: "include",
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -163,6 +169,7 @@ export async function getCurrentSessionInfo(token?: string | null): Promise<Sess
 export async function refreshGuestSession(token?: string | null): Promise<string> {
   const response = await fetch(REFRESH_SESSION_URL, {
     method: "POST",
+    credentials: "include",
     headers: token
       ? {
           Authorization: `Bearer ${token}`,
@@ -183,6 +190,41 @@ export async function refreshGuestSession(token?: string | null): Promise<string
 
   setStoredAccessToken(refreshedToken);
   return refreshedToken;
+}
+
+async function refreshAccessToken(token?: string | null): Promise<string> {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshGuestSession(token).finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+/** Reintenta una petición autenticada una vez tras renovar el access token. */
+export async function fetchWithSession(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  token?: string | null,
+): Promise<Response> {
+  const request = async (accessToken: string): Promise<Response> => {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(input, { ...init, headers, credentials: init.credentials ?? "include" });
+  };
+
+  const currentToken = token ?? getStoredAccessToken();
+  if (!currentToken) throw new Error("No hay token de sesión disponible.");
+
+  const firstResponse = await request(currentToken);
+  if (firstResponse.status !== 401) return firstResponse;
+
+  try {
+    return await request(await refreshAccessToken(currentToken));
+  } catch {
+    // No crear una sesión nueva: esa sesión no sería dueña de la partida actual.
+    return firstResponse;
+  }
 }
 
 export function isTokenExpiredError(error: unknown): boolean {
