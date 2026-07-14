@@ -32,6 +32,7 @@ export type AccionVisual =
   | { tipo: "REPARTIR_MANO_BACK"; cartas: CartaJugable[] }
   | { tipo: "SELECCIONAR"; cartaId: string }
   | { tipo: "DESCARTAR"; cartaId: string }
+  | { tipo: "AVANZAR_RONDA" }
   | { tipo: "FINALIZAR" };
 
 export const estadoVisualInicial: EstadoVisual = {
@@ -89,6 +90,28 @@ export function tableroVisualReducer(
         ...estado,
         mano: estado.mano.filter((item) => item.id !== accion.cartaId),
         descarte: [...estado.descarte, carta],
+      };
+    }
+
+    case "AVANZAR_RONDA": {
+      const acciones = Object.values(estado.sectores)
+        .flat()
+        .filter((carta) => carta.tipo === "action");
+      if (acciones.length === 0) return estado;
+
+      const sectores: Partial<Record<SectorId, CartaJugable[]>> = {};
+      for (const [sectorId, cartas] of Object.entries(estado.sectores)) {
+        const permanentes = cartas.filter((carta) => carta.tipo !== "action");
+        if (permanentes.length > 0) sectores[sectorId as SectorId] = permanentes;
+      }
+
+      return {
+        ...estado,
+        sectores,
+        descarte: [
+          ...estado.descarte,
+          ...acciones.filter((carta) => !estado.descarte.some((descartada) => descartada.id === carta.id)),
+        ],
       };
     }
 
