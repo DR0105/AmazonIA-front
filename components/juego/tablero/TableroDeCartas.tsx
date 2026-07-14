@@ -22,7 +22,12 @@ import { LayoutGroup } from "framer-motion";
 import { ANIM } from "@/lib/tablero/animaciones";
 import { useCatalogo } from "@/lib/catalog/useCatalogo";
 import { useGameState } from "@/lib/juego/useGameState";
-import { descartarCarta, finalizarTurno, jugarCarta } from "@/lib/juego/api";
+import {
+  descartarCarta,
+  finalizarTurno,
+  jugarCarta,
+  resolverEvento,
+} from "@/lib/juego/api";
 import { getStoredAccessToken } from "@/lib/juego/session";
 import {
   estadoVisualInicial,
@@ -80,7 +85,11 @@ function Aviso({
 
 export function TableroDeCartas({ gameId }: { gameId: string | null }) {
   // ── Catálogo y estado de la partida ───────────────────────────────────────
-  const { cartas: catalogoCartas, cargando: cargandoCatalogo } = useCatalogo();
+  const {
+    cartas: catalogoCartas,
+    eventos: catalogoEventos,
+    cargando: cargandoCatalogo,
+  } = useCatalogo();
   const cartaPorId = useMemo(
     () => new Map(catalogoCartas.map((c) => [c.id, c])),
     [catalogoCartas],
@@ -99,9 +108,21 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
   const [gameData, setGameData] = useState<GameResponse | null>(null);
   const [manoInicialMostrada, setManoInicialMostrada] = useState(false);
 
-  // Cuando llega GET /api/games/{gameId}, inicializa el tablero.
+  // Cuando llega GET /api/games/{gameId}, inicializa o refresca el tablero.
+  // No permitimos que un GET iniciado antes de un comando reemplace la respuesta
+  // más reciente: los recursos y acciones deben corresponder a la mayor versión.
   useEffect(() => {
-    if (partidaActual) setGameData(partidaActual);
+    if (!partidaActual) return;
+    setGameData((actual) => {
+      if (
+        !actual ||
+        actual.id !== partidaActual.id ||
+        partidaActual.version >= actual.version
+      ) {
+        return partidaActual;
+      }
+      return actual;
+    });
   }, [partidaActual]);
 
   useEffect(() => {
@@ -196,6 +217,40 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
       version,
       consultarPartida,
     ],
+  );
+
+  const handleResolverEvento = useCallback(
+    async (eventId: string) => {
+      console.log("handleResolverEvento");
+      if (jugandoRef.current) {
+        throw new Error("Hay una acción en curso. Intenta nuevamente en un momento.");
+      }
+      if (!gameId || !state) {
+        throw new Error("No hay una partida activa para resolver el evento.");
+      }
+      jugandoRef.current = true;
+
+      try {
+        const token = getStoredAccessToken();
+        if (!token) throw new Error("Sin token de sesión.");
+        console.log("Resolviendo evento", eventId, "en partida", gameId, "versión", version);
+        const partidaTrasResolver = await resolverEvento(
+          token,
+          gameId,
+          eventId,
+          version,
+        );
+        
+        setGameData(partidaTrasResolver);
+        await consultarPartida();
+      } catch (e) {
+        console.error("Error al resolver evento:", e);
+        throw e;
+      } finally {
+        jugandoRef.current = false;
+      }
+    },
+    [gameId, state, version, consultarPartida],
   );
 
   // ── Derivar datos de presentación ─────────────────────────────────────────
@@ -299,7 +354,12 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
           fontFamily: "'Georgia', 'Times New Roman', serif",
         }}
       >
-        <PanelEventos />
+        <PanelEventos
+          eventosActivos={state.events?.active ?? []}
+          eventosCatalogo={catalogoEventos}
+          recursos={state.resources}
+          onResolverEvento={handleResolverEvento}
+        />
 
         <PanelEstado
           deforestacion={state.environment?.deforestation ?? 0}

@@ -2,10 +2,17 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect, type DragEvent } from "react";
+import {
+  useState,
+  useEffect,
+  type DragEvent,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { createPortal } from "react-dom";
+import { CirclePlay, Info, X } from "lucide-react";
 import { ANIM } from "@/lib/tablero/animaciones";
-import type { CartaJugable } from "@/types/tablero";
+import { ETIQUETAS_SECTOR, type CartaJugable } from "@/types/tablero";
 import type { ActionResult } from "@/types/juego";
 import { PARCHMENT } from "./TableroDeCartas";
 
@@ -114,6 +121,7 @@ export function ManoDesplegada({
 }: ManoDesplegadaProps) {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
+
   return (
     <div className="flex gap-3 items-end justify-center">
       {(visible ? cartas : []).map((carta, i) => {
@@ -147,15 +155,18 @@ export function ManoDesplegada({
                 data-sector={carta.sector}
                 data-permitida={String(permitida)}
                 draggable={interactiva && descartable}
-                disabled={!interactuable}
                 aria-disabled={!interactuable}
                 aria-label={`${carta.nombre}${tooltipMsg ? ` — ${tooltipMsg}` : ""}`}
+                aria-haspopup={descartable ? undefined : "menu"}
                 onClick={() => {
                   if (descartable) {
                     onDescartar?.(carta.id);
                   } else if (clickable) {
                     onSeleccionar(carta.id);
                   }
+                }}
+                onKeyDown={(evento) => {
+                  if (descartable) return;
                 }}
                 onDragStartCapture={(event: DragEvent<HTMLButtonElement>) => {
                   if (!descartable) return;
@@ -173,7 +184,7 @@ export function ManoDesplegada({
                 style={{
                   width: ANCHO_SLOT,
                   height: ALTO_SLOT,
-                  cursor: descartable ? "grab" : clickable ? "pointer" : "not-allowed",
+                  cursor: descartable ? "grab" : "pointer",
                   opacity: permitida ? 1 : 0.38,
                   filter: permitida ? "none" : "grayscale(60%)",
                   border: `2px solid ${permitida ? PARCHMENT.border : "#9A8870"}`,
