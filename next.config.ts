@@ -14,8 +14,18 @@ const nextConfig: NextConfig = {
         destination: `${BACKEND_BASE}/catalog`,
       },
       {
-        // POST /api/games  → POST http://localhost:8080/api/v1/games
-        // GET  /api/games/:id → GET http://localhost:8080/api/v1/games/:id
+        source: "/api/sessions/guest",
+        destination: `${BACKEND_BASE}/sessions/guest`,
+      },
+      {
+        source: "/api/sessions/current",
+        destination: `${BACKEND_BASE}/sessions/current`,
+      },
+      {
+        source: "/api/sessions/refresh",
+        destination: `${BACKEND_BASE}/sessions/refresh`,
+      },
+      {
         source: "/api/games",
         destination: `${BACKEND_BASE}/games`,
       },
