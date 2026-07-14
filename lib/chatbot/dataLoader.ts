@@ -7,7 +7,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), 'public', 'data');
+const DATA_DIR = path.join(process.cwd(), 'analytics', 'data');
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 

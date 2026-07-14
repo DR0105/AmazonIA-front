@@ -62,7 +62,7 @@ export function parsearQuery(pregunta: string): QueryParseada {
   const esPreguntaPrediccion = /predic|prox|siguient|futuro|6 mes|seis mes|estimad|riesgo|alerta/.test(texto);
 
   // ¿Es "top" (más) o "bottom" (menos)?
-  const esPreguntaTop    = /mas focos|mayor activ|top|ranking|mas incendio|mayor numero/.test(texto);
+  const esPreguntaTop    = /mas focos|mayor activ|top|ranking|mas incendio|mayor numero|mas puntos|mas calor|mayor cantidad/.test(texto);
   const esPreguntaMenos  = /menos focos|menor activ|menos incendio|menor numero|minimo|poca activ|bajo activ/.test(texto);
 
   // Año — solo capturar si NO hay "desde", "partir", "para acá" que indique rango

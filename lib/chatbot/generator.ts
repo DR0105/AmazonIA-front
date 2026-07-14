@@ -72,7 +72,7 @@ PREGUNTA DEL USUARIO: ${pregunta}
 Responde en español, de forma concisa (máximo 4 oraciones). Cita los números exactos de los datos. Si los datos muestran algo preocupante, mencionalo brevemente. Termina siempre indicando la fuente.`;
 
   try {
-    const model = getGemini().getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = getGemini().getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     const result = await model.generateContent(prompt);
     const texto = result.response.text().trim();
 
