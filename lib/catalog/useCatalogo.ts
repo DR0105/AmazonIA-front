@@ -57,6 +57,9 @@ export function useCatalogo(): EstadoCatalogo {
               sector: c.sector,
               tipo: c.type,
               imagen,
+              costo: c.cost,
+              requisitos: c.requires ?? [],
+              descripcion: c.rulesText,
             };
           })
           .filter((c): c is CartaJugable => c !== null);

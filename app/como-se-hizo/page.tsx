@@ -20,7 +20,7 @@ const PASOS = [
   },
   {
     numero: 3,
-    icono: '🤖',
+    icono: '🌿',
     titulo: 'El modelo aprendió a reconocer patrones',
     texto:
       'En vez de que una persona escriba reglas a mano, se le mostraron al modelo cientos de ejemplos históricos reales y él mismo descubrió qué combinaciones de información pasada anticipan mejor lo que viene: el mes pasado, hace 3 y 12 meses, el promedio reciente, la época del año.',
@@ -34,7 +34,7 @@ const PASOS = [
   },
   {
     numero: 5,
-    icono: '🔮',
+    icono: '📡',
     titulo: 'Con el modelo evaluado, se proyectan los próximos 6 meses',
     texto:
       'Una vez confirmado que el modelo funciona razonablemente bien, se usa toda la historia disponible para estimar los próximos 6 meses, mes por mes, para cada departamento. La incertidumbre crece con el horizonte porque cada mes futuro se apoya en predicciones previas.',

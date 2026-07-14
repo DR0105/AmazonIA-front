@@ -263,32 +263,191 @@ export function PanelEventos({
       )}
 
       {eventoInfo && (
-        <aside
-          role="dialog"
-          aria-label={`Información de ${eventoInfo.name}`}
-          className="fixed z-50 w-72 rounded-lg p-4 shadow-xl"
-          style={{
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            backgroundColor: PARCHMENT.panel,
-            border: `2px solid ${PARCHMENT.border}`,
-            color: PARCHMENT.text,
-          }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-base font-bold">{eventoInfo.name}</h3>
-            <button
-              type="button"
-              onClick={() => setEventoInfo(null)}
-              aria-label="Cerrar información"
-              className="rounded p-1 hover:bg-black/5"
+        <>
+          {/* Overlay */}
+          <div
+            role="presentation"
+            className="fixed inset-0 z-40"
+            style={{ backgroundColor: 'rgba(30,20,10,0.55)', backdropFilter: 'blur(2px)' }}
+            onClick={() => setEventoInfo(null)}
+          />
+
+          {/* Modal */}
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Información de ${eventoInfo.name}`}
+            className="fixed z-50 rounded-2xl shadow-2xl"
+            style={{
+              left: '50%', top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 'min(92vw, 560px)',
+              backgroundColor: PARCHMENT.panel,
+              border: `3px solid ${PARCHMENT.border}`,
+              color: PARCHMENT.text,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Cabecera */}
+            <div
+              className="px-5 py-3 text-center relative"
+              style={{ borderBottom: `2px solid ${PARCHMENT.borderLight}`, backgroundColor: PARCHMENT.panelDark }}
             >
-              <X size={18} aria-hidden />
-            </button>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed">{eventoInfo.description}</p>
-        </aside>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] mb-1" style={{ color: '#8B1A1A' }}>
+                ⚠️ Evento crítico
+              </p>
+              <h3 className="text-xl font-bold">
+                {iconoEvento(eventoInfo.id)} {eventoInfo.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEventoInfo(null)}
+                aria-label="Cerrar"
+                className="absolute right-3 top-3 rounded-lg p-1.5 hover:bg-black/10"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            {/* Cuerpo */}
+            <div className="p-5 grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+
+              {/* Columna izquierda: recursos + botón */}
+              <div className="flex flex-col gap-4">
+                <div
+                  className="rounded-xl p-4"
+                  style={{ backgroundColor: PARCHMENT.panelDark, border: `1.5px solid ${PARCHMENT.borderLight}` }}
+                >
+                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-center mb-3"
+                     style={{ color: PARCHMENT.textMuted }}>
+                    Recursos necesarios
+                  </p>
+                  <div className="flex justify-around">
+                    {[
+                      { emoji: '💰', label: 'DINERO',   val: eventoInfo.solution.money  },
+                      { emoji: '👥', label: 'PERSONAS', val: eventoInfo.solution.people },
+                      { emoji: '🌱', label: 'TIERRA',   val: eventoInfo.solution.land   },
+                    ].map(({ emoji, label, val }) => (
+                      <div key={label} className="flex flex-col items-center gap-1">
+                        <span className="text-2xl">{emoji}</span>
+                        <span className="text-sm font-bold">x{val}</span>
+                        <span className="text-xs uppercase tracking-wide" style={{ color: PARCHMENT.textMuted }}>
+                          {label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Botón resolver dentro del modal */}
+                <button
+                  type="button"
+                  disabled={!sePuedeSolucionar(eventoInfo, recursos) || resolviendoId === eventoInfo.id}
+                  onClick={async () => {
+                    setResolviendoId(eventoInfo.id);
+                    try {
+                      await onResolverEvento(eventoInfo.id);
+                      setEventoInfo(null);
+                    } catch (err) {
+                      setErrorResolucion(err instanceof Error ? err.message : 'Error al resolver.');
+                    } finally {
+                      setResolviendoId(null);
+                    }
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{
+                    backgroundColor: '#1B4D2E',
+                    color: '#F5EDD0',
+                    border: '2px solid #0F3020',
+                  }}
+                >
+                  <CircleCheck size={17} strokeWidth={2.5} aria-hidden />
+                  {resolviendoId === eventoInfo.id ? 'Resolviendo…' : 'Resolver evento'}
+                </button>
+
+                {errorResolucion && (
+                  <p className="text-xs text-center" role="alert" style={{ color: '#8B1A1A' }}>
+                    {errorResolucion}
+                  </p>
+                )}
+              </div>
+
+              {/* Columna derecha: efectos */}
+              <div className="flex flex-col gap-3">
+                {/* Al resolver */}
+                {eventoInfo.solveEffects.length > 0 && (
+                  <div
+                    className="rounded-xl p-3"
+                    style={{ backgroundColor: '#EEF7EE', border: '1.5px solid #4CAF50' }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-sm font-bold" style={{ color: '#1B5E20' }}>✅ Al resolver</span>
+                    </div>
+                    {eventoInfo.solveEffects.map((ef, i) => {
+                      const esRemove = ef.type === 'remove_deforestation';
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-lg">🌳</span>
+                          <span className="text-lg font-bold" style={{ color: '#1B5E20' }}>
+                            ↓ -{ef.amount}
+                          </span>
+                          <span className="text-xs uppercase tracking-wide" style={{ color: '#2E7D32' }}>
+                            {esRemove ? 'Deforestación' : ef.type}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Si expira */}
+                <div
+                  className="rounded-xl p-3"
+                  style={{ backgroundColor: '#FFF0F0', border: '1.5px solid #E57373' }}
+                >
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-sm font-bold" style={{ color: '#8B1A1A' }}>❌ Si expira</span>
+                  </div>
+                  {eventoInfo.expirationEffects.map((ef, i) => {
+                    const esAdd = ef.type === 'add_deforestation';
+                    return (
+                      <div key={i} className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">🪵</span>
+                        <span className="text-lg font-bold" style={{ color: '#8B1A1A' }}>
+                          ↑ +{ef.amount}
+                        </span>
+                        <span className="text-xs uppercase tracking-wide" style={{ color: '#C62828' }}>
+                          {esAdd ? 'Deforestación' : ef.type}
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {/* Recursos perdidos */}
+                  {(eventoInfo.expirationLoss.money > 0 || eventoInfo.expirationLoss.people > 0 || eventoInfo.expirationLoss.land > 0) && (
+                    <>
+                      <div className="my-2 border-t" style={{ borderColor: '#FFCDD2' }} />
+                      <p className="text-xs uppercase tracking-wide mb-1" style={{ color: '#8B1A1A' }}>
+                        Recursos perdidos
+                      </p>
+                      {[
+                        { emoji: '💰', label: 'DINERO',   val: eventoInfo.expirationLoss.money  },
+                        { emoji: '👥', label: 'PERSONAS', val: eventoInfo.expirationLoss.people },
+                        { emoji: '🌱', label: 'TIERRA',   val: eventoInfo.expirationLoss.land   },
+                      ].map(({ emoji, label, val }) => (
+                        <div key={label} className="flex items-center gap-2 text-sm">
+                          <span>{emoji}</span>
+                          <span className="font-bold" style={{ color: '#8B1A1A' }}>-{val}</span>
+                          <span className="text-xs uppercase" style={{ color: '#C62828' }}>{label}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        </>
       )}
     </section>
   );

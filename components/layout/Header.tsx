@@ -15,10 +15,46 @@ interface HeaderProps {
   subtitle?: string;
 }
 
+function descargarCSV(pathname: string) {
+  if (pathname.startsWith("/predicciones")) {
+    // Genera CSV desde los datos de predicciones via API
+    fetch("/api/predicciones")
+      .then((r) => r.json())
+      .then((data) => {
+        const rows = data.predicciones_proximos_6_meses ?? [];
+        if (!rows.length) return;
+        const headers = Object.keys(rows[0]).join(",");
+        const body = rows
+          .map((r: Record<string, unknown>) => Object.values(r).join(","))
+          .join("\n");
+        bajarArchivo(`${headers}\n${body}`, "predicciones_amazonia.csv");
+      });
+  } else {
+    // Histórico: descarga el CSV original directamente (no pasa por JSON)
+    const a = document.createElement("a");
+    a.href = "/api/export-historico";
+    a.download = "focos_historicos_amazonia_2017_hoy.csv";
+    a.click();
+  }
+}
+
+function bajarArchivo(contenido: string, nombre: string) {
+  const blob = new Blob([contenido], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = nombre;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function Header({ title, subtitle }: HeaderProps) {
   const pathname = usePathname();
   const showGameSessionButton = pathname.startsWith("/juego");
   useGuestSessionToken(showGameSessionButton);
+
+  // Mostrar el botón Export solo en páginas de datos
+  const showExport = pathname.startsWith("/predicciones") || pathname.startsWith("/historico");
 
   return (
     <header
@@ -57,7 +93,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             color: "#64748B",
           }}
         >
-          <span>Enero 2024 – Presente</span>
+          <span>Enero 2017 – Presente</span>
         </div>
 
         {/* Live indicator */}
@@ -76,15 +112,19 @@ export function Header({ title, subtitle }: HeaderProps) {
           Live Data
         </div>
 
-        {/* Export */}
-        <button
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#0F5132" }}
-        >
-          <ArrowDownTrayIcon className="w-4 h-4" />
-          Export Report
-        </button>
+        {/* Export — solo en páginas de datos */}
+        {showExport && (
+          <button
+            onClick={() => descargarCSV(pathname)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white transition-all hover:opacity-90"
+            style={{ backgroundColor: "#0F5132" }}
+          >
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            Export Report
+          </button>
+        )}
       </div>
     </header>
   );
 }
+

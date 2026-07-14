@@ -40,6 +40,9 @@ export interface CartaCatalogo {
   name: string;
   type: string;
   sector: SectorId;
+  cost?: { money: number; people: number; land: number };
+  requires?: string[];
+  rulesText?: string;
 }
 
 /** Recursos que un evento requiere o pierde. */
@@ -98,4 +101,7 @@ export interface CartaJugable {
   sector: SectorId;
   tipo: string;
   imagen: StaticImageData;
+  costo?: { money: number; people: number; land: number };
+  requisitos?: string[];
+  descripcion?: string;
 }
