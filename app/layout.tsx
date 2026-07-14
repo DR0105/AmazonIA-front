@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: "AmazonIA – Scientific Monitoring",
   description:
     "Plataforma profesional de monitoreo ambiental e inteligencia artificial para la Amazonía colombiana",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -35,11 +36,14 @@ export function Sidebar() {
         style={{ borderColor: "rgba(255,255,255,0.1)" }}
       >
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-            style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
-          >
-            🌿
+          <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+            <Image
+              src="/logo.png"
+              alt="AmazonIA logo"
+              width={36}
+              height={36}
+              style={{ objectFit: "cover", width: 36, height: 36 }}
+            />
           </div>
           <div>
             <h1 className="text-white font-bold text-xl leading-none tracking-tight">

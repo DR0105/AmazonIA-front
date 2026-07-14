@@ -58,6 +58,42 @@ export function finalizarTurno(
   return enviarComando(accessToken, gameId, { type: "end_turn", expectedVersion }, signal);
 }
 
+/** POST /api/v1/games/:id/commands — resuelve un evento activo. */
+export async function resolverEvento(
+  accessToken: string,
+  gameId: string,
+  eventId: string,
+  expectedVersion: number,
+  signal?: AbortSignal,
+): Promise<GameResponse> {
+  const respuesta = await fetch(`${GAMES_URL}/${gameId}/commands`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      type: "resolve_event",
+      eventId,
+      expectedVersion,
+    }),
+    signal,
+  });
+
+  if (!respuesta.ok) {
+    const cuerpo = await respuesta.text().catch(() => "");
+    throw new Error(
+      `POST /api/games/${gameId}/commands → ${respuesta.status}. ${cuerpo}`,
+    );
+  }
+
+  return (await respuesta.json()) as GameResponse;
+}
+
+/**
+ * POST /api/v1/games — crea una nueva partida.
+ * Devuelve el estado inicial completo con `id`, `state` y `availableActions`.
+ */
 export async function crearPartida(
   accessToken: string,
   signal?: AbortSignal,

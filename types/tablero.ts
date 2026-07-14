@@ -40,11 +40,55 @@ export interface CartaCatalogo {
   name: string;
   type: string;
   sector: SectorId;
+  cost?: { money: number; people: number; land: number };
+  requires?: string[];
+  rulesText?: string;
+}
+
+/** Recursos que un evento requiere o pierde. */
+export interface RecursosEventoCatalogo {
+  money: number;
+  people: number;
+  land: number;
+}
+
+/** Efecto configurable de un evento del catálogo. */
+export interface EfectoEventoCatalogo {
+  trigger: string;
+  type: string;
+  amount?: number;
+  reason?: string;
+}
+
+/** Evento tal como llega del endpoint `/api/v1/catalog`. */
+export interface EventoCatalogo {
+  id: string;
+  name: string;
+  category: string;
+  initialRounds: number;
+  solution: RecursosEventoCatalogo;
+  solveEffects: EfectoEventoCatalogo[];
+  expirationLoss: RecursosEventoCatalogo;
+  expirationEffects: EfectoEventoCatalogo[];
+  cannotPayEffects: EfectoEventoCatalogo[];
+  recurring: boolean;
+  terminal: boolean;
+  baseProbability: number;
+  minDeforestation: number;
+  minPeople: number;
+  cooldownRounds: number;
+  requiresSector?: SectorId;
+}
+
+/** Evento enriquecido con texto para la interfaz. */
+export interface EventoConDescripcion extends EventoCatalogo {
+  description: string;
 }
 
 /** Respuesta del catálogo. */
 export interface RespuestaCatalogo {
   cards: CartaCatalogo[];
+  events: EventoCatalogo[];
 }
 
 /**
@@ -57,4 +101,7 @@ export interface CartaJugable {
   sector: SectorId;
   tipo: string;
   imagen: StaticImageData;
+  costo?: { money: number; people: number; land: number };
+  requisitos?: string[];
+  descripcion?: string;
 }

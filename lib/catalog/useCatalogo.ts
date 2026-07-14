@@ -12,13 +12,16 @@ import { useEffect, useState } from "react";
 import {
   ORDEN_SECTORES,
   type CartaJugable,
+  type EventoConDescripcion,
   type SectorId,
 } from "@/types/tablero";
 import { fetchCatalogo } from "./api";
 import { getCardImage } from "./cardImages";
+import { getDescripcionEvento } from "./eventDescriptions";
 
 export interface EstadoCatalogo {
   cartas: CartaJugable[];
+  eventos: EventoConDescripcion[];
   cargando: boolean;
   error: string | null;
 }
@@ -33,6 +36,7 @@ function mensajeDeError(e: unknown): string {
 export function useCatalogo(): EstadoCatalogo {
   const [estado, setEstado] = useState<EstadoCatalogo>({
     cartas: [],
+    eventos: [],
     cargando: true,
     error: null,
   });
@@ -53,15 +57,28 @@ export function useCatalogo(): EstadoCatalogo {
               sector: c.sector,
               tipo: c.type,
               imagen,
+              costo: c.cost,
+              requisitos: c.requires ?? [],
+              descripcion: c.rulesText,
             };
           })
           .filter((c): c is CartaJugable => c !== null);
 
-        setEstado({ cartas, cargando: false, error: null });
+        const eventos = (data.events ?? []).map((evento) => ({
+          ...evento,
+          description: getDescripcionEvento(evento.id),
+        }));
+
+        setEstado({ cartas, eventos, cargando: false, error: null });
       })
       .catch((e) => {
         if (controlador.signal.aborted) return;
-        setEstado({ cartas: [], cargando: false, error: mensajeDeError(e) });
+        setEstado({
+          cartas: [],
+          eventos: [],
+          cargando: false,
+          error: mensajeDeError(e),
+        });
       });
 
     return () => controlador.abort();

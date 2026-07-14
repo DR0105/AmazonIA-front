@@ -15,7 +15,7 @@ export interface GameStateData {
   game: GameResponse | null;
   cargando: boolean;
   error: string | null;
-  refetch: () => void;
+  refetch: () => Promise<void>;
 }
 
 const GAMES_URL = "/api/games";
