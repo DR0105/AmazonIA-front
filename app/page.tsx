@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ModuloCard } from '@/components/home/ModuloCard';
 import { NarrativaCards } from '@/components/home/NarrativaCards';
+import { OpenChatButton } from '@/components/home/OpenChatButton';
 
 // ─── Datos del equipo ─────────────────────────────────────────────────────────
 const EQUIPO = [
@@ -133,7 +134,30 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── D. FUENTES ───────────────────────────────────────────────── */}
+        {/* ── D. LLAMADA A LA ACCIÓN — CHATBOT ────────────────────────── */}
+        <section style={{
+          background: 'linear-gradient(135deg, #0a2e1a 0%, #0F5132 100%)',
+          borderRadius: 16, padding: '36px 40px', marginBottom: 0,
+          display: 'flex', flexWrap: 'wrap', gap: 24,
+          alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div>
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+              Asistente IA
+            </p>
+            <h3 style={{ color: 'white', fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+              ¿Tienes una pregunta sobre los datos?
+            </h3>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, maxWidth: 480, lineHeight: 1.6 }}>
+              Consulta el histórico de focos de calor, las predicciones de riesgo
+              o compara departamentos directamente con el asistente de AmazonIA.
+            </p>
+          </div>
+          <OpenChatButton />
+        </section>
+
+        {/* ── E. FUENTES ───────────────────────────────────────────────── */}
         <section style={{
           borderTop: '1px solid #E2E8F0', borderBottom: '1px solid #E2E8F0',
           padding: '40px 0',

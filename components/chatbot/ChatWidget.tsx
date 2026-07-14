@@ -152,6 +152,13 @@ export function ChatWidget() {
     if (abierto) setTimeout(() => inputRef.current?.focus(), 100);
   }, [abierto]);
 
+  // Permite abrir el chat desde cualquier parte con: window.dispatchEvent(new CustomEvent('amazonia:open-chat'))
+  useEffect(() => {
+    const handler = () => setAbierto(true);
+    window.addEventListener('amazonia:open-chat', handler);
+    return () => window.removeEventListener('amazonia:open-chat', handler);
+  }, []);
+
   async function enviarPregunta(pregunta: string) {
     if (!pregunta.trim() || cargando) return;
 
