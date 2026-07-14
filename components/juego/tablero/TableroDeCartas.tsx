@@ -37,6 +37,7 @@ import { FilaDeSectores } from "./FilaDeSectores";
 import { ManoDesplegada } from "./ManoDesplegada";
 import { Mazo } from "./Mazo";
 import { PilaDescarte } from "./PilaDescarte";
+import { GameOutcomeModal } from "../GameOutcomeModal";
 
 export const PARCHMENT = {
   bg: "#E8D9A0",
@@ -110,6 +111,11 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
 
   const state = gameData?.state ?? null;
   const version = gameData?.version ?? 0;
+  const resultado = state?.defeat.gameOver
+    ? "defeat"
+    : state?.victory.completed
+      ? "victory"
+      : null;
 
   // ── Estado visual local (animación) ──────────────────────────────────────
   const [estadoVisual, dispatch] = useReducer(
@@ -131,7 +137,7 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
   // ── Selección de carta: animación + llamada al back ───────────────────────
   const handleSeleccionar = useCallback(
     async (cartaId: string) => {
-      if (jugandoRef.current || !gameId || !state) return;
+      if (jugandoRef.current || !gameId || !state || state.phase === "finished") return;
       jugandoRef.current = true;
 
       // 1. Dispara la animación visual inmediatamente
@@ -165,7 +171,7 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
 
   const handleDescartar = useCallback(
     async (cartaId: string) => {
-      if (jugandoRef.current || !gameId || !state) return;
+      if (jugandoRef.current || !gameId || !state || state.phase === "finished") return;
       if (state.phase !== "discard_required") return;
       if (!gameData?.availableActions.discards[cartaId]?.allowed) return;
       jugandoRef.current = true;
@@ -207,7 +213,7 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
   }, [state?.cards?.hand, cartaPorId]);
 
   const handleMazoClick = useCallback(async () => {
-    if (jugandoRef.current || !gameId || !state) return;
+    if (jugandoRef.current || !gameId || !state || state.phase === "finished") return;
 
     // La partida nueva ya trae initialHandSize cartas. El primer clic solo las
     // revela; no debe ejecutar end_turn ni robar una sexta carta.
@@ -281,12 +287,13 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
 
   const deckCount = state.cards?.deckCount ?? 0;
   const mazoAgotado = deckCount === 0 && mano.length === 0;
-  const mazoHabilitado = estadoVisual.fase !== "resolviendo" && deckCount > 0;
+  const mazoHabilitado = !resultado && estadoVisual.fase !== "resolviendo" && deckCount > 0;
   const manoVisible =
     estadoVisual.fase !== "idle" && estadoVisual.mano.length > 0;
   const manoInteractiva = estadoVisual.fase === "desplegada";
 
   return (
+    <>
     <LayoutGroup>
       <div
         data-testid="tablero-de-cartas"
@@ -347,5 +354,14 @@ export function TableroDeCartas({ gameId }: { gameId: string | null }) {
         </div>
       </div>
     </LayoutGroup>
+    {resultado && (
+      <GameOutcomeModal
+        outcome={resultado}
+        version={version}
+        route={state.victory.route}
+        reason={state.defeat.reason}
+      />
+    )}
+    </>
   );
 }

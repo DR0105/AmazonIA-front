@@ -66,16 +66,10 @@ export function useGuestSessionToken(enabled = true): void {
 
         await loadCurrentSession(refreshedToken);
       } catch (error) {
-        if (!isTokenExpiredError(error)) {
-          throw error;
-        }
-
-        const renewedToken = await createGuestSession();
-        if (cancelled) {
-          return;
-        }
-
-        await loadCurrentSession(renewedToken);
+        // Una sesión nueva no sería dueña de la partida en curso. Si el
+        // refresh falla, conservamos el error en vez de cambiar de identidad
+        // silenciosamente y provocar respuestas 403 sobre esa partida.
+        console.error("No se pudo renovar la sesión de la partida:", error);
       }
     };
 
